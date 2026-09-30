@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cashu Audit
 
-## Getting Started
+Independent proof that Cashu mints pay. Runs at https://audit.cashu.cz.
 
-First, run the development server:
+The auditor checks every tracked mint every 5 minutes from two locations, moves real sats between mints
+over Lightning, verifies DLEQ proofs and proof states, and publishes the results. See `/methodology` on
+the site for exactly what is measured and how failures are attributed.
+
+## Stack
+
+Next.js 16 (App Router), React 19, Prisma 7 with SQLite (better-sqlite3 adapter), cashu-ts 4, nostr-tools,
+Node 24. Design system: `docs/BRAND.md`.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `app/` | pages, server actions, API routes (`/api/run-*` are cron jobs, `/api/v1/*` is the public API) |
+| `lib/transfer.ts` | swap engine: quotes, proof reservation, melt, mint, recovery |
+| `lib/wallet.ts` | deterministic wallet (NUT-13), DB-backed counters, restore |
+| `lib/probe.ts` | timed `/v1/info` and `/v1/keysets` probe |
+| `lib/egress.ts`, `lib/netguard.ts` | blocks outbound connections to private addresses |
+| `lib/blame.ts` | failure attribution |
+| `deploy/` | systemd unit, Frankfurt probe script |
+
+## Configuration
+
+Environment (production: `/etc/cashu-auditor/env`, never in the repo):
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL` | `file:/path/to/dev.db` |
+| `CRON_SECRET` | bearer token for `/api/run-*` |
+| `PROBE_SECRET` | bearer token for the Frankfurt probe |
+| `HOME_MINT_URL` | mint that funds the audit |
+| `WALLET_MNEMONIC` | BIP39 seed for NUT-13 deterministic secrets |
+| `BIND_HOST`, `PORT` | listen address |
+
+## Development
 
 ```bash
+npm ci
+npx prisma generate
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`./deploy.sh` copies the working tree to `/srv/cashu-auditor/app`, builds it as the `cashu-audit` user and
+restarts the `cashu-auditor` systemd service.

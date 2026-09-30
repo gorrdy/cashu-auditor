@@ -1,0 +1,46 @@
+const DAY = 86_400_000;
+const ROUTE_ERROR = /no[_ ]?route|route|payment failed|failure_reason|http status/i;
+
+export type BlameSwap = {
+  status: string;
+  stage: string | null;
+  error: string | null;
+  sourceMintId: string;
+  destMintId: string;
+  timestamp: Date;
+};
+
+export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * DAY) {
+  const recent = swaps.filter(s => now - s.timestamp.getTime() < windowMs);
+  const receivedOk = new Set(recent.filter(s => s.status === 'success').map(s => s.destMintId));
+  const paidOk = new Set(recent.filter(s => s.status === 'success').map(s => s.sourceMintId));
+  const failedFrom = new Map<string, Set<string>>();
+  const failedTo = new Map<string, Set<string>>();
+  for (const s of recent) {
+    if (s.status !== 'failed' || s.stage !== 'melt' || !ROUTE_ERROR.test(s.error ?? '')) continue;
+    if (!failedFrom.has(s.destMintId)) failedFrom.set(s.destMintId, new Set());
+    failedFrom.get(s.destMintId)!.add(s.sourceMintId);
+    if (!failedTo.has(s.sourceMintId)) failedTo.set(s.sourceMintId, new Set());
+    failedTo.get(s.sourceMintId)!.add(s.destMintId);
+  }
+
+  return (s: BlameSwap): string | null => {
+    if (s.status === 'success') return null;
+    if (s.status === 'pending') return s.stage === 'mint' ? s.destMintId : s.stage === 'melt' ? s.sourceMintId : null;
+    switch (s.stage) {
+      case 'mint_quote':
+      case 'mint':
+        return s.destMintId;
+      case 'melt_quote':
+        return s.sourceMintId;
+      case 'melt': {
+        if (!ROUTE_ERROR.test(s.error ?? '')) return s.sourceMintId;
+        if ((failedFrom.get(s.destMintId)?.size ?? 0) >= 2 && !receivedOk.has(s.destMintId)) return s.destMintId;
+        if ((failedTo.get(s.sourceMintId)?.size ?? 0) >= 2 && !paidOk.has(s.sourceMintId)) return s.sourceMintId;
+        return null;
+      }
+      default:
+        return null;
+    }
+  };
+}

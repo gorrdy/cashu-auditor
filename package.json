@@ -9,18 +9,36 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "next": "16.2.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "@cashu/cashu-ts": "^4.11.0",
+    "@prisma/adapter-better-sqlite3": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "@scure/bip39": "^2.4.0",
+    "dotenv": "^18.0.4",
+    "next": "^16.3.7",
+    "nostr-tools": "^2.25.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "undici": "^7.30.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^10.11.0",
+    "eslint-config-next": "^16.3.7",
+    "prisma": "^7.10.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
+    "unrs-resolver@1.12.2": true
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "mysql2": "^3.24.5"
   }
 }

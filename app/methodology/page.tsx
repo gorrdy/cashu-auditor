@@ -1,0 +1,84 @@
+import type { Metadata } from 'next';
+import StateBadge from '@/components/StateBadge';
+
+export const metadata: Metadata = { title: 'Methodology' };
+
+export default function Methodology() {
+  return (
+    <article className="prose">
+      <p className="eyebrow">Methodology</p>
+      <h1 className="h1" style={{ marginTop: 8 }}>How the audit works</h1>
+      <p>
+        Cashu Audit is an assay office for ecash. It does not rate mints. It records what a mint did when asked to
+        answer and when asked to pay, and publishes the log.
+      </p>
+
+      <h2>Availability checks</h2>
+      <ul>
+        <li>Every 5 minutes the auditor calls <span className="mono">GET /v1/info</span> and <span className="mono">GET /v1/keysets</span> on every tracked mint, from a server in Prague.</li>
+        <li>A check counts as <strong>up</strong> when <span className="mono">/v1/info</span> returns a valid Cashu info document within 8 seconds.</li>
+        <li>If info answers but there is no active sat keyset, the mint is <strong>degraded</strong>: reachable, but unable to issue ecash.</li>
+        <li>Response time is measured for <span className="mono">/v1/info</span> only and includes TLS and the network path from Prague.</li>
+        <li>If almost every mint fails at once, the auditor first confirms its own internet connection and discards the round when it is offline.</li>
+      </ul>
+
+      <h2>Lightning swaps</h2>
+      <p>
+        A swap takes a small random amount of donated ecash at one mint, melts it to pay a Lightning invoice created by
+        another mint, and mints fresh ecash there. It is the only way to prove that both mints actually move money.
+      </p>
+      <ul>
+        <li>Each swap is between 10 and 100 sat and at most 10 % of the audit balance. Sources are online mints with balance.</li>
+        <li>A destination must be tracked for at least 3 days and answer at least 95 % of checks in the last 24 hours. Among those, the one swapped to least recently goes first. Until a mint has paid out a swap itself, it receives at most 5 sat, and the auditor never holds more than 600 sat at any mint other than its home mint.</li>
+        <li>Proofs are locked before paying. If a payment times out, the auditor asks the mint for the quote state later and settles or releases the proofs. A swap is never paid twice.</li>
+        <li>A failure is attributed only where the evidence points. A refused quote or failed minting counts against the destination, a refused melt quote or a payment stuck in pending against the source.</li>
+        <li>A Lightning routing failure can sit anywhere on the path, so by default it counts against neither mint. It is attributed to the destination only after payments to it failed from at least two different mints with no successful payment in 7 days, and to the source likewise for payments to two different destinations.</li>
+        <li>A mint is marked Warning for swaps only while its most recent attributed failure in the last 24 hours is newer than its last successful swap.</li>
+        <li>Fees are what the source kept after returning change: amount sent minus amount minted minus change.</li>
+      </ul>
+
+      <h2>Second vantage point</h2>
+      <ul>
+        <li>Every 5 minutes a server in Frankfurt runs the same <span className="mono">/v1/info</span> check. Availability states use Prague; Frankfurt is shown next to it so a slow route can be told apart from a slow mint.</li>
+        <li>Response time is split into DNS lookup, TCP connect, TLS handshake and server response.</li>
+      </ul>
+
+      <h2>Specification and changes</h2>
+      <ul>
+        <li>From <span className="mono">/v1/info</span> and <span className="mono">/v1/keysets</span> the audit records payment methods, units and limits, whether deposits or withdrawals are disabled, the input fee of the active keyset, its version, authentication, WebSocket and batch support, contact, terms and onion address.</li>
+        <li>Changes of software version, mint pubkey, active keyset, input fee, message of the day and disabled operations are logged with the time they were first seen.</li>
+        <li>Clock offset compares the mint&apos;s reported time with the auditor&apos;s clock. The mint reports whole seconds, so offsets below 1 s are noise.</li>
+        <li>The TLS certificate issuer and expiry are read on every check. Hosting network (ASN) and IPv4/IPv6 availability are refreshed daily; the country is where the IP block is registered, not necessarily where the server stands.</li>
+        <li>Mints that advertise an onion address are checked over Tor every 6 hours.</li>
+      </ul>
+
+      <h2>Integrity checks</h2>
+      <ul>
+        <li><strong>Proof state.</strong> Once a day the auditor asks each mint where it holds ecash whether those proofs are still unspent (NUT-07). Proofs the mint reports as spent, although the auditor never spent them, are marked lost.</li>
+        <li><strong>Internal swap.</strong> Once a day the auditor swaps ecash with the mint (<span className="mono">/v1/swap</span>) without Lightning. At mints without input fees all of its proofs are swapped, elsewhere the smallest one.</li>
+        <li><strong>DLEQ.</strong> Every proof the auditor receives is checked for a valid DLEQ proof (NUT-12), which shows the mint signed it with the published key.</li>
+        <li>All ecash uses deterministic secrets (NUT-13), so proofs lost to a dropped connection can be restored from the auditor&apos;s seed.</li>
+      </ul>
+
+      <h2>Reviews</h2>
+      <p>
+        Reviews are NIP-87 recommendations (kind 38000) read from public Nostr relays. Each event is signed by its
+        author; only the latest review per author and mint is counted. The audit does not write or filter reviews.
+      </p>
+
+      <h2>States</h2>
+      <ul style={{ listStyle: 'none', paddingLeft: 0, display: 'grid', gap: 10 }}>
+        <li><StateBadge kind="ok" /> answered the last check, at least 99 % uptime in 24 h, last swap through it paid.</li>
+        <li><StateBadge kind="warn" /> answering, but uptime in 24 h is below 99 %, keysets are missing, a swap is pending, or the last swap through it failed at its step.</li>
+        <li><StateBadge kind="error" /> did not answer the last check.</li>
+        <li><StateBadge kind="unknown" /> added but not checked yet.</li>
+      </ul>
+
+      <h2>Funding</h2>
+      <p>
+        Swaps are paid from donated ecash. Donated tokens are redeemed immediately, so the donor can no longer spend
+        them. Balances shown are what the auditor holds right now at each mint.
+      </p>
+    </article>
+  );
+}

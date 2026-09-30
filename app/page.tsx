@@ -1,65 +1,204 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { getOverview, getRecentSwaps, getSwapGraph, type MintState } from '@/lib/stats';
+import MintGraph, { GraphLegend, GraphTable } from '@/components/MintGraph';
+import StateBadge from '@/components/StateBadge';
+import MintIcon from '@/components/MintIcon';
+import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
+import StatusBars, { StatusTable } from '@/components/StatusBars';
+import SwapTable from '@/components/SwapTable';
+import { AddMintForm, DonateForm } from '@/components/Forms';
+import { fmtAgo, fmtDayKey, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
-export default function Home() {
+export const revalidate = 60;
+
+const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 0, unknown: 1, error: 2 };
+
+const COLUMNS = {
+  state: ['State', 'State'],
+  name: ['Mint', 'Mint'],
+  uptime: ['Uptime 30 d', '30 d'],
+  latency: ['Latency', 'ms'],
+  balance: ['Balance', 'Balance'],
+  errors: ['Errors', 'Errors'],
+} as const;
+type SortKey = keyof typeof COLUMNS;
+
+type Row = Awaited<ReturnType<typeof getOverview>>['mints'][number];
+
+const compare: Record<SortKey, (a: Row, b: Row) => number> = {
+  state: (a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state],
+  name: (a, b) => mintLabel(a).localeCompare(mintLabel(b)),
+  uptime: (a, b) => (a.uptime30d ?? -1) - (b.uptime30d ?? -1),
+  latency: (a, b) => (a.avgLatency24h ?? Infinity) - (b.avgLatency24h ?? Infinity),
+  balance: (a, b) => a.balance - b.balance,
+  errors: (a, b) => a.errors - b.errors,
+};
+
+function SortHeader({ col, sort, dir, align, className }: { col: SortKey; sort: SortKey; dir: 'asc' | 'desc'; align?: 'r'; className?: string }) {
+  const active = col === sort;
+  const next = active && dir === 'asc' ? 'desc' : 'asc';
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <th className={[align, className].filter(Boolean).join(' ') || undefined} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
+      <Link className="sort" href={`/?sort=${col}&dir=${next}`} aria-current={active} scroll={false} prefetch={false}>
+        <span className="lbl-long">{COLUMNS[col][0]}</span>
+        <span className="lbl-short">{COLUMNS[col][1]}</span>
+        <span aria-hidden="true" style={{ fontSize: 10, color: active ? 'var(--copper)' : 'var(--ink-3)' }}>
+          {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </Link>
+    </th>
+  );
+}
+
+export default async function Overview({ searchParams }: { searchParams: Promise<{ sort?: string; dir?: string }> }) {
+  const params = await searchParams;
+  const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
+  const dir = params.dir === 'desc' ? 'desc' : 'asc';
+
+  const [{ mints, totals, swapsPerDay, now }, recent, graphEdges] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph()]);
+  const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
+
+  const rows = [...mints].sort((a, b) => {
+    const c = compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b);
+    return dir === 'asc' ? c : -c;
+  });
+
+  const bars = swapsPerDay.map(d => ({ label: fmtDayKey(d.day), success: d.success, failed: d.failed, pending: d.pending }));
+  const currentHour = Math.floor(now / HOUR_MS);
+
+  return (
+    <>
+      <section>
+        <p className="eyebrow">Cashu mint audit</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginTop: 8 }}>
+          <div style={{ maxWidth: 640 }}>
+            <h1 className="h1">Do Cashu mints actually pay?</h1>
+            <p className="soft" style={{ margin: '10px 0 0' }}>
+              Every 5 minutes we check each mint&apos;s API. Several times a day we move real sats between mints over
+              Lightning and record what happened. No ratings, only measurements.
+            </p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {totals.tracked}</span></div>
+            <div className="small soft">mints answering now · checked {fmtAgo(now, totals.lastCheck)}</div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="section tiles" aria-label="Summary">
+        <div className="tile">
+          <div className="tile-label">Swap success</div>
+          <div className="tile-value">{fmtPct(totals.successRate)}</div>
+          <div className="tile-sub">{totals.swaps} swaps · {totals.swaps24h} in 24 h{totals.pending ? ` · ${totals.pending} pending` : ''}</div>
         </div>
-      </main>
-    </div>
+        <div className="tile">
+          <div className="tile-label">Moved over Lightning</div>
+          <div className="tile-value">{totals.swapped.toLocaleString('en-US')}<small>sat</small></div>
+          <div className="tile-sub">Fees paid {fmtSat(totals.fees)}</div>
+        </div>
+        <div className="tile">
+          <div className="tile-label">Average swap time</div>
+          <div className="tile-value">{fmtMs(totals.avgSwapMs)}</div>
+          <div className="tile-sub">Quote to minted proofs</div>
+        </div>
+        <div className="tile">
+          <div className="tile-label">Audit balance</div>
+          <div className="tile-value">{totals.balance.toLocaleString('en-US')}<small>sat</small></div>
+          <div className="tile-sub">Donated {fmtSat(totals.donated)}{totals.reserved ? ` · ${fmtSat(totals.reserved)} in flight` : ''}</div>
+        </div>
+      </section>
+
+      <section className="section" id="mints">
+        <div className="section-head">
+          <h2 className="h2">Mints</h2>
+          <UptimeLegend />
+        </div>
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <SortHeader col="state" sort={sort} dir={dir} />
+                <SortHeader col="name" sort={sort} dir={dir} />
+                <th className="c-lg">Last 24 h</th>
+                <SortHeader col="uptime" sort={sort} dir={dir} align="r" />
+                <SortHeader col="latency" sort={sort} dir={dir} align="r" />
+                <th className="c-xl">Version</th>
+                <SortHeader col="balance" sort={sort} dir={dir} align="r" className="c-lg" />
+                <th className="r c-xl" title="Successful swaps: minted at this mint / melted from this mint">Mints / Melts</th>
+                <SortHeader col="errors" sort={sort} dir={dir} align="r" className="c-md" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(m => (
+                <tr key={m.id}>
+                  <td><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></td>
+                  <td>
+                    <div className="mint-cell">
+                      <MintIcon id={m.id} hash={m.iconHash} />
+                      <div style={{ minWidth: 0 }}>
+                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
+                        {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="c-lg">
+                    <UptimeStrip
+                      variant="compact"
+                      ariaLabel={`Hourly availability of ${mintLabel(m)} in the last 24 hours`}
+                      cells={m.strip.map((u, i) => ({ uptime: u, label: `${fmtHour((currentHour - 23 + i) * HOUR_MS)}–${fmtHour((currentHour - 22 + i) * HOUR_MS)}` }))}
+                    />
+                  </td>
+                  <td className="r nowrap" title={`24 h ${fmtPct(m.uptime24h)} · 7 d ${fmtPct(m.uptime7d)}`}>{fmtPct(m.uptime30d)}</td>
+                  <td className="r nowrap">{fmtMs(m.avgLatency24h)}</td>
+                  <td className="mono soft nowrap c-xl"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
+                  <td className="r nowrap c-lg">{m.balance ? fmtSat(m.balance) : <span className="muted">—</span>}</td>
+                  <td className="r nowrap c-xl">{m.mints} / {m.melts}</td>
+                  <td className="r nowrap c-md">{m.errors || <span className="muted">0</span>}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>No mints tracked yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="small muted" style={{ marginTop: 8 }}>
+          Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Errors count failed swaps attributed to the mint.
+        </p>
+      </section>
+
+      <section className="section card" id="swaps">
+        <div className="card-head">
+          <div>
+            <h2 className="h2">Swaps per day</h2>
+            <p className="small soft" style={{ margin: 0 }}>Last 30 days · a swap melts ecash at one mint and mints it at another</p>
+          </div>
+        </div>
+        <StatusBars buckets={bars} ariaLabel="Swaps per day over the last 30 days, split into paid, failed and pending" firstLabel={bars[0]?.label ?? ''} lastLabel="Today" />
+        <StatusTable buckets={bars} head="Day" />
+      </section>
+
+      <section className="section card" id="network">
+        <div className="card-head">
+          <div>
+            <h2 className="h2">Swap network</h2>
+            <p className="small soft" style={{ margin: 0 }}>Which mints paid which, last 30 days · click a mint for details</p>
+          </div>
+          <GraphLegend />
+        </div>
+        <MintGraph nodes={graphNodes} edges={graphEdges} />
+        {graphEdges.length > 0 && <GraphTable nodes={graphNodes} edges={graphEdges} />}
+      </section>
+
+      <section className="section">
+        <div className="section-head"><h2 className="h2">Recent swaps</h2></div>
+        <SwapTable swaps={recent} emptyText="No swaps yet. They start once the audit wallet holds ecash." />
+      </section>
+
+      <section className="section two-col">
+        <DonateForm />
+        <AddMintForm />
+      </section>
+    </>
   );
 }

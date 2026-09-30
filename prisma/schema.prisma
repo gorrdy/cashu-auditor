@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Mint {
+  id            String     @id @default(cuid())
+  url           String     @unique
+  name          String?
+  version       String?
+  pubkey        String?
+  description   String?
+  iconUrl       String?
+  iconData      Bytes?
+  iconType      String?
+  iconHash      String?
+  iconFetchedAt DateTime?
+  contact       String?
+  motd          String?
+  tosUrl        String?
+  onionUrl      String?
+  methods       String?
+  units         String?
+  mintDisabled  Boolean?
+  meltDisabled  Boolean?
+  authRequired  Boolean?
+  websockets    Boolean?
+  cachedResponses Boolean?
+  batchMax      Int?
+  maxArrayLength Int?
+  inputFeePpk   Int?
+  activeKeysetId String?
+  keysetCount   Int?
+  clockSkewMs   Int?
+  tlsIssuer     String?
+  tlsExpiresAt  DateTime?
+  ip            String?
+  ipv4          Boolean?
+  ipv6          Boolean?
+  asn           Int?
+  asName        String?
+  country       String?
+  netCheckedAt  DateTime?
+  nuts          String?
+  source        String     @default("manual")
+  addedAt       DateTime   @default(now())
+  audits        AuditLog[]
+  proofs        Proof[]
+  donations     Donation[]
+  events        MintEvent[]
+  checks        MintCheck[]
+  reviews       MintReview[]
+  outgoingSwaps Swap[]     @relation("SwapSource")
+  incomingSwaps Swap[]     @relation("SwapDest")
+}
+
+model Proof {
+  id       String   @id @default(cuid())
+  mintId   String
+  mint     Mint     @relation(fields: [mintId], references: [id])
+  keysetId String
+  amount   Int
+  secret   String   @unique
+  C        String
+  state    String   @default("unspent")
+  swapId   String?
+  storedAt DateTime @default(now())
+
+  @@index([mintId, state])
+  @@index([swapId])
+}
+
+model Swap {
+  id           String   @id @default(cuid())
+  kind         String   @default("swap")
+  sourceMintId String
+  destMintId   String
+  sourceMint   Mint     @relation("SwapSource", fields: [sourceMintId], references: [id])
+  destMint     Mint     @relation("SwapDest", fields: [destMintId], references: [id])
+  amount       Int
+  fee          Int      @default(0)
+  feeReserve   Int?
+  status       String
+  stage        String?
+  duration     Int      @default(0)
+  error        String?
+  mintQuoteId  String?
+  meltQuoteId  String?
+  attempts     Int      @default(0)
+  quoteMs      Int?
+  meltMs       Int?
+  mintMs       Int?
+  dleq         String?
+  timestamp    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([timestamp])
+  @@index([status])
+  @@index([sourceMintId, timestamp])
+  @@index([destMintId, timestamp])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  mintId     String
+  mint       Mint     @relation(fields: [mintId], references: [id])
+  status     String
+  latency    Int
+  keysetsMs  Int?
+  location   String   @default("prague")
+  dnsMs      Int?
+  connectMs  Int?
+  tlsMs      Int?
+  ttfbMs     Int?
+  clockSkewMs Int?
+  httpStatus Int?
+  version    String?
+  error      String?
+  timestamp  DateTime @default(now())
+
+  @@index([mintId, location, timestamp])
+  @@index([location, timestamp])
+}
+
+model Donation {
+  id        String   @id @default(cuid())
+  mintId    String
+  mint      Mint     @relation(fields: [mintId], references: [id])
+  amount    Int
+  timestamp DateTime @default(now())
+
+  @@index([mintId])
+}
+
+model KeysetCounter {
+  keysetId  String   @id
+  next      Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model MintEvent {
+  id        String   @id @default(cuid())
+  mintId    String
+  mint      Mint     @relation(fields: [mintId], references: [id])
+  kind      String
+  previous  String?
+  value     String?
+  timestamp DateTime @default(now())
+
+  @@index([mintId, timestamp])
+}
+
+model MintCheck {
+  id        String   @id @default(cuid())
+  mintId    String
+  mint      Mint     @relation(fields: [mintId], references: [id])
+  kind      String
+  ok        Boolean
+  ms        Int?
+  detail    String?
+  timestamp DateTime @default(now())
+
+  @@index([mintId, kind, timestamp])
+}
+
+model MintReview {
+  id        String   @id
+  mintId    String
+  mint      Mint     @relation(fields: [mintId], references: [id])
+  author    String
+  rating    Int?
+  content   String
+  createdAt DateTime
+
+  @@unique([mintId, author])
+  @@index([mintId, createdAt])
+}
