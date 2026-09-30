@@ -15,6 +15,7 @@ const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 0, unknown: 1, err
 
 const COLUMNS = {
   state: ['State', 'State'],
+  score: ['Score', 'Score'],
   name: ['Mint', 'Mint'],
   uptime: ['Uptime 30 d', '30 d'],
   latency: ['Latency', 'ms'],
@@ -27,6 +28,7 @@ type Row = Awaited<ReturnType<typeof getOverview>>['mints'][number];
 
 const compare: Record<SortKey, (a: Row, b: Row) => number> = {
   state: (a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state],
+  score: (a, b) => (a.score ?? -1) - (b.score ?? -1),
   name: (a, b) => mintLabel(a).localeCompare(mintLabel(b)),
   uptime: (a, b) => (a.uptime30d ?? -1) - (b.uptime30d ?? -1),
   latency: (a, b) => (a.avgLatency24h ?? Infinity) - (b.avgLatency24h ?? Infinity),
@@ -34,12 +36,12 @@ const compare: Record<SortKey, (a: Row, b: Row) => number> = {
   errors: (a, b) => a.errors - b.errors,
 };
 
-function SortHeader({ col, sort, dir, align, className }: { col: SortKey; sort: SortKey; dir: 'asc' | 'desc'; align?: 'r'; className?: string }) {
+function SortHeader({ col, sort, dir, align, className, query, first = 'asc' }: { col: SortKey; sort: SortKey; dir: 'asc' | 'desc'; align?: 'r'; className?: string; query: string; first?: 'asc' | 'desc' }) {
   const active = col === sort;
-  const next = active && dir === 'asc' ? 'desc' : 'asc';
+  const next = active ? (dir === 'asc' ? 'desc' : 'asc') : first;
   return (
     <th className={[align, className].filter(Boolean).join(' ') || undefined} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
-      <Link className="sort" href={`/?sort=${col}&dir=${next}`} aria-current={active} scroll={false} prefetch={false}>
+      <Link className="sort" href={`/?${query}${query ? '&' : ''}sort=${col}&dir=${next}`} aria-current={active} scroll={false} prefetch={false}>
         <span className="lbl-long">{COLUMNS[col][0]}</span>
         <span className="lbl-short">{COLUMNS[col][1]}</span>
         <span aria-hidden="true" style={{ fontSize: 10, color: active ? 'var(--copper)' : 'var(--ink-3)' }}>
@@ -50,7 +52,24 @@ function SortHeader({ col, sort, dir, align, className }: { col: SortKey; sort: 
   );
 }
 
-export default async function Overview({ searchParams }: { searchParams: Promise<{ sort?: string; dir?: string }> }) {
+const FILTERS = [
+  { key: 'online', label: 'Online' },
+  { key: 'free', label: 'No input fee' },
+  { key: 'ws', label: 'WebSockets' },
+  { key: 'onion', label: 'Onion' },
+] as const;
+
+type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string };
+
+function filterQuery(p: Params, change: Partial<Record<keyof Params, string | undefined>> = {}, keepSort = true) {
+  const q = new URLSearchParams();
+  const merged = { ...p, ...change };
+  for (const k of ['online', 'free', 'ws', 'onion', 'unit'] as const) if (merged[k]) q.set(k, merged[k]!);
+  if (keepSort) for (const k of ['sort', 'dir'] as const) if (merged[k]) q.set(k, merged[k]!);
+  return q.toString();
+}
+
+export default async function Overview({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
@@ -58,7 +77,16 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const [{ mints, totals, swapsPerDay, now }, recent, graphEdges] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph()]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
-  const rows = [...mints].sort((a, b) => {
+  const allUnits = [...new Set(mints.flatMap(m => m.units))].filter(u => u !== 'sat').sort();
+  const filtered = mints.filter(m =>
+    (!params.online || (m.latestStatus && m.latestStatus !== 'offline')) &&
+    (!params.free || m.inputFeePpk === 0) &&
+    (!params.ws || m.websockets) &&
+    (!params.onion || !!m.onionUrl) &&
+    (!params.unit || m.units.includes(params.unit))
+  );
+  const query = filterQuery(params, {}, false);
+  const rows = [...filtered].sort((a, b) => {
     const c = compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b);
     return dir === 'asc' ? c : -c;
   });
@@ -113,19 +141,39 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <h2 className="h2">Mints</h2>
           <UptimeLegend />
         </div>
+        <nav className="filters" aria-label="Filter mints">
+          {FILTERS.map(f => {
+            const on = !!params[f.key];
+            return (
+              <Link key={f.key} className="filter" aria-pressed={on} href={`/?${filterQuery(params, { [f.key]: on ? undefined : '1' })}`} scroll={false} prefetch={false}>
+                {f.label}
+              </Link>
+            );
+          })}
+          {allUnits.map(u => {
+            const on = params.unit === u;
+            return (
+              <Link key={u} className="filter" aria-pressed={on} href={`/?${filterQuery(params, { unit: on ? undefined : u })}`} scroll={false} prefetch={false}>
+                {u.toUpperCase()}
+              </Link>
+            );
+          })}
+          <span className="small muted">{rows.length} of {mints.length} mints</span>
+          {query && <Link className="small" href={`/?${filterQuery({ sort: params.sort, dir: params.dir })}`} scroll={false} prefetch={false}>Clear</Link>}
+        </nav>
         <div className="table-wrap">
           <table className="data">
             <thead>
               <tr>
-                <SortHeader col="state" sort={sort} dir={dir} />
-                <SortHeader col="name" sort={sort} dir={dir} />
+                <SortHeader col="state" sort={sort} dir={dir} query={query} />
+                <SortHeader col="name" sort={sort} dir={dir} query={query} />
+                <SortHeader col="score" sort={sort} dir={dir} align="r" className="c-sm" query={query} first="desc" />
                 <th className="c-lg">Last 24 h</th>
-                <SortHeader col="uptime" sort={sort} dir={dir} align="r" />
-                <SortHeader col="latency" sort={sort} dir={dir} align="r" />
+                <SortHeader col="uptime" sort={sort} dir={dir} query={query} align="r" />
+                <SortHeader col="latency" sort={sort} dir={dir} query={query} align="r" />
                 <th className="c-xl">Version</th>
-                <SortHeader col="balance" sort={sort} dir={dir} align="r" className="c-lg" />
-                <th className="r c-xl" title="Successful swaps: minted at this mint / melted from this mint">Mints / Melts</th>
-                <SortHeader col="errors" sort={sort} dir={dir} align="r" className="c-md" />
+                <SortHeader col="balance" sort={sort} dir={dir} query={query} align="r" className="c-lg" />
+                <SortHeader col="errors" sort={sort} dir={dir} query={query} align="r" className="c-md" />
               </tr>
             </thead>
             <tbody>
@@ -141,6 +189,9 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       </div>
                     </div>
                   </td>
+                  <td className="r nowrap c-sm" title={m.scoreParts.map(p => `${p.label}: ${p.score == null ? '—' : Math.round(p.score)} (${p.detail})`).join('\n')}>
+                    {m.score == null ? <span className="muted">—</span> : <strong className="num">{m.score}</strong>}
+                  </td>
                   <td className="c-lg">
                     <UptimeStrip
                       variant="compact"
@@ -152,12 +203,11 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                   <td className="r nowrap">{fmtMs(m.avgLatency24h)}</td>
                   <td className="mono soft nowrap c-xl"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
                   <td className="r nowrap c-lg">{m.balance ? fmtSat(m.balance) : <span className="muted">—</span>}</td>
-                  <td className="r nowrap c-xl">{m.mints} / {m.melts}</td>
                   <td className="r nowrap c-md">{m.errors || <span className="muted">0</span>}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>No mints tracked yet.</td></tr>
+                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>{mints.length ? 'No mint matches these filters.' : 'No mints tracked yet.'}</td></tr>
               )}
             </tbody>
           </table>

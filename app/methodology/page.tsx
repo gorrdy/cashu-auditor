@@ -60,6 +60,16 @@ export default function Methodology() {
         <li>All ecash uses deterministic secrets (NUT-13), so proofs lost to a dropped connection can be restored from the auditor&apos;s seed.</li>
       </ul>
 
+      <h2 id="score">Audit score</h2>
+      <p>A number from 0 to 100 computed only from what the audit measured. Parts without enough data are left out and the remaining weights rescaled.</p>
+      <ul>
+        <li><strong>Availability, 30 days (weight 40).</strong> 90 % or less scores 0, 100 % scores 100, linear in between.</li>
+        <li><strong>Swap success, 30 days (30).</strong> Share of the mint&apos;s swaps without a failure attributed to it. Counted from 3 swaps, or from the first attributed failure.</li>
+        <li><strong>Response time (10).</strong> Average over 24 hours from Prague. 150 ms scores 100, 2 s scores 0.</li>
+        <li><strong>Lightning fee when paying out (10).</strong> Fee kept as a share of the amount paid. 1 % scores 100, 10 % scores 0.</li>
+        <li><strong>Nostr reviews (10).</strong> Average rating out of 5. Needs at least 3 ratings.</li>
+      </ul>
+
       <h2>Reviews</h2>
       <p>
         Reviews are NIP-87 recommendations (kind 38000) read from public Nostr relays. Each event is signed by its
@@ -72,6 +82,15 @@ export default function Methodology() {
         <li><StateBadge kind="warn" /> answering, but uptime in 24 h is below 99 %, keysets are missing, a swap is pending, or the last swap through it failed at its step.</li>
         <li><StateBadge kind="error" /> did not answer the last check.</li>
         <li><StateBadge kind="unknown" /> added but not checked yet.</li>
+      </ul>
+
+      <h2 id="api">Open data</h2>
+      <p>Everything on this site is available without a key. Responses are cached for 60 seconds.</p>
+      <ul>
+        <li><span className="mono">GET /api/v1/mints</span> all mints with state, score, uptime and spec, or <span className="mono">/api/v1/mints.csv</span></li>
+        <li><span className="mono">GET /api/v1/mints/&#123;id&#125;</span> one mint with daily uptime, latency breakdown, swaps, integrity checks and changes</li>
+        <li><span className="mono">GET /api/v1/swaps?limit=100</span> recent swaps</li>
+        <li><span className="mono">GET /badge/&#123;id&#125;.svg</span> an uptime badge for mint operators to embed</li>
       </ul>
 
       <h2>Funding</h2>

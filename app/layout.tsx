@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
 import Link from 'next/link';
 import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import Mark from '@/components/Mark';
@@ -24,7 +25,8 @@ export const metadata: Metadata = {
   description: 'Independent proof that Cashu mints pay. Uptime, latency and real Lightning swaps between public Cashu mints.',
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body>

@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { makeBlame } from './blame';
+import { computeScore } from './score';
 
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
@@ -66,8 +67,8 @@ function stateFor(opts: {
 }
 
 export async function getOverview(now = Date.now()) {
-  const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps] = await Promise.all([
-    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true } }),
+  const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews] = await Promise.all([
+    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true } }),
     prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
       SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
       JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
@@ -89,7 +90,16 @@ export async function getOverview(now = Date.now()) {
       select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     }),
+    prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
   ]);
+
+  const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
+  const month = new Map<string, { ok: number; blamed: number; meltAmount: number; meltFee: number }>();
+  const monthOf = (id: string) => {
+    let m = month.get(id);
+    if (!m) month.set(id, (m = { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 }));
+    return m;
+  };
 
   const latestBy = new Map(latest.map(l => [l.mintId, l]));
   const donatedBy = new Map(donations.map(d => [d.mintId, d._sum.amount ?? 0]));
@@ -120,9 +130,16 @@ export async function getOverview(now = Date.now()) {
   };
   for (const s of allSwaps) {
     const t = s.timestamp.getTime();
+    const inMonth = now - t < 30 * DAY;
     if (s.status === 'success') {
       counts(s.destMintId).mints++;
       counts(s.sourceMintId).melts++;
+      if (inMonth) {
+        monthOf(s.sourceMintId).ok++;
+        monthOf(s.destMintId).ok++;
+        monthOf(s.sourceMintId).meltAmount += s.amount;
+        monthOf(s.sourceMintId).meltFee += s.fee;
+      }
       for (const id of [s.sourceMintId, s.destMintId]) counts(id).lastOkAt = Math.max(counts(id).lastOkAt, t);
       continue;
     }
@@ -130,7 +147,10 @@ export async function getOverview(now = Date.now()) {
     if (!blamed) continue;
     const c = counts(blamed);
     if (s.status === 'pending') c.pending++;
-    else c.errors++;
+    else {
+      c.errors++;
+      if (inMonth) monthOf(blamed).blamed++;
+    }
     c.lastBlamedAt = Math.max(c.lastBlamedAt, t);
   }
 
@@ -140,6 +160,18 @@ export async function getOverview(now = Date.now()) {
     const uptime24h = u24 ? pct(u24.up, u24.total) : null;
     const c = swapCounts.get(m.id) ?? { mints: 0, melts: 0, errors: 0, pending: 0, lastOkAt: 0, lastBlamedAt: 0 };
     const recentFailure = now - c.lastBlamedAt < DAY && c.lastBlamedAt > c.lastOkAt;
+    const mo = month.get(m.id) ?? { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 };
+    const rv = reviewBy.get(m.id);
+    const uptime30d = u30 ? pct(u30.up, u30.total) : null;
+    const { score, parts: scoreParts } = computeScore({
+      uptime30d,
+      swapOk: mo.ok,
+      swapBlamed: mo.blamed,
+      latencyMs: u24?.avgLatency ?? null,
+      feePct: mo.meltAmount ? (mo.meltFee / mo.meltAmount) * 100 : null,
+      reviewAvg: rv?.avg ?? null,
+      reviewCount: rv?.count ?? 0,
+    });
     const bal = balanceBy.get(m.id) ?? { unspent: 0, reserved: 0 };
     return {
       ...m,
@@ -149,7 +181,10 @@ export async function getOverview(now = Date.now()) {
       checkedAt: l ? Number(l.timestamp) : null,
       uptime24h,
       uptime7d: u7 ? pct(u7.up, u7.total) : null,
-      uptime30d: u30 ? pct(u30.up, u30.total) : null,
+      uptime30d,
+      score,
+      scoreParts,
+      units: m.units ? (JSON.parse(m.units) as string[]) : [],
       avgLatency24h: u24?.avgLatency ? Math.round(u24.avgLatency) : null,
       strip: stripBy.get(m.id) ?? Array<number | null>(24).fill(null),
       balance: bal.unspent,
@@ -328,8 +363,15 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
 
   const errorsBlamed = inRange.filter(s => s.status === 'failed' && blame(s) === id).length;
   let lastOkAt = 0, lastBlamedAt = 0;
+  const month = { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 };
   for (const s of swaps) {
     const t = s.timestamp.getTime();
+    if (now - t < 30 * DAY) {
+      if (s.status === 'success') {
+        month.ok++;
+        if (s.sourceMintId === id) { month.meltAmount += s.amount; month.meltFee += s.fee; }
+      } else if (s.status === 'failed' && blame(s) === id) month.blamed++;
+    }
     if (s.status === 'success') lastOkAt = Math.max(lastOkAt, t);
     else if (blame(s) === id) lastBlamedAt = Math.max(lastBlamedAt, t);
   }
@@ -372,6 +414,16 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
     reserved: balance.find(b => b.state === 'reserved')?._sum.amount ?? 0,
     donated: donated._sum.amount ?? 0,
     firstAuditAt: audits[0]?.timestamp.getTime() ?? null,
+    scoreInput: {
+      uptime30d: pct(windows['30d'].up, windows['30d'].total),
+      swapOk: month.ok,
+      swapBlamed: month.blamed,
+      latencyMs: (() => {
+        const v = audits.filter(a => a.status !== 'offline' && now - a.timestamp.getTime() < DAY).map(a => a.latency);
+        return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
+      })(),
+      feePct: month.meltAmount ? (month.meltFee / month.meltAmount) * 100 : null,
+    },
   };
 }
 

@@ -11,6 +11,7 @@ import LatencyChart from '@/components/LatencyChart';
 import SwapTable from '@/components/SwapTable';
 import { EventsCard, IntegrityCard, NetworkCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
+import { computeScore } from '@/lib/score';
 import { fmtAgo, fmtDate, fmtDateTime, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
 
 export const revalidate = 60;
@@ -48,6 +49,7 @@ export default async function MintPage({ params, searchParams }: Props) {
   const ongoing = d.incidents.some(i => i.end === null);
   const lastEnd = closed.length ? Math.max(...closed.map(i => i.end!)) : null;
   const sd = x.swapDetail;
+  const { score, parts: scoreParts } = computeScore({ ...d.scoreInput, reviewAvg: x.reviews.average, reviewCount: x.reviews.rated });
 
   return (
     <>
@@ -63,6 +65,8 @@ export default async function MintPage({ params, searchParams }: Props) {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
+          <div className="hero-num" style={{ fontSize: 40, lineHeight: '44px' }}>{score ?? '—'}<span className="soft" style={{ fontSize: 16, fontWeight: 500 }}> / 100</span></div>
+          <div className="small muted" style={{ marginBottom: 8 }}><a href="#score">Audit score</a></div>
           <StateBadge kind={d.state} />
           <div className="small soft" style={{ marginTop: 6 }}>
             {d.reasons.length ? d.reasons.join(' · ') : 'Answering and paying'}
@@ -244,11 +248,36 @@ export default async function MintPage({ params, searchParams }: Props) {
             <dt>Audit balance</dt><dd>{fmtSat(d.balance)}{d.reserved ? ` · ${fmtSat(d.reserved)} in flight` : ''}</dd>
             <dt>Donated here</dt><dd>{fmtSat(d.donated)}</dd>
           </dl>
+          <p className="small soft" style={{ margin: '20px 0 8px' }}>Badge for the mint operator</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/badge/${mint.id}.svg`} alt="Cashu Audit badge" height={20} />
+          <pre className="mono small" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', background: 'var(--surface-2)', padding: 10, borderRadius: 4, margin: '8px 0 0' }}>{`<a href="https://audit.cashu.cz/mint/${mint.id}"><img src="https://audit.cashu.cz/badge/${mint.id}.svg" alt="Cashu Audit"></a>`}</pre>
+          <p className="small muted" style={{ margin: '8px 0 0' }}>Data for this mint: <a href={`/api/v1/mints/${mint.id}`}>JSON</a></p>
         </div>
       </section>
 
       <section className="section">
         <ReviewsCard reviews={x.reviews} />
+      </section>
+
+      <section className="section card" id="score">
+        <h2 className="h2">Audit score</h2>
+        <p className="small soft" style={{ margin: '0 0 12px' }}>Weighted from measurements; parts without enough data are left out and the weights rescaled. <Link href="/methodology#score" prefetch={false}>How it is computed</Link></p>
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Part</th><th className="r">Weight</th><th className="r">Points</th><th className="c-sm">Based on</th></tr></thead>
+            <tbody>
+              {scoreParts.map(p => (
+                <tr key={p.key}>
+                  <td>{p.label}</td>
+                  <td className="r">{p.weight}</td>
+                  <td className="r">{p.score == null ? <span className="muted">—</span> : Math.round(p.score)}</td>
+                  <td className="small soft cell-wrap c-sm">{p.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="section">
