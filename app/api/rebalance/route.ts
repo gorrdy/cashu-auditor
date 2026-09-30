@@ -50,8 +50,14 @@ export async function GET(request: Request) {
       }
     }
 
+    const unreachable = new Set(
+      (await prisma.swap.findMany({
+        where: { sourceMintId: home.id, status: 'failed', stage: 'melt', timestamp: { gte: new Date(now - 86_400_000) } },
+        select: { destMintId: true },
+      })).map(r => r.destMintId)
+    );
     if ((await totalBalance()) >= SLOW_BELOW) {
-      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW)) {
+      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id))) {
         const need = TARGET - (balances.get(m.id) ?? 0);
         if (homeBalance - need < HOME_RESERVE) break;
         const r = await transfer({ source: home, dest: m, amount: need });
