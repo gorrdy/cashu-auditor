@@ -46,3 +46,18 @@ describe('makeBlame', () => {
     expect(makeBlame([x], now)(x)).toBeNull();
   });
 });
+
+describe('recentlyFailing', () => {
+  it('flags a mint whose last attributed failure is newer than its last success', async () => {
+    const { recentlyFailing } = await import('@/lib/blame');
+    const ok = s('K', 'H', 'success', null, null, 120_000);
+    const stuck = s('K', 'H', 'pending', 'melt', 'Timeout', 60_000);
+    expect([...recentlyFailing([ok, stuck], now)]).toEqual(['K']);
+  });
+  it('clears after a later success', async () => {
+    const { recentlyFailing } = await import('@/lib/blame');
+    const bad = s('A', 'B', 'failed', 'mint_quote', 'down', 120_000);
+    const ok = s('C', 'B', 'success', null, null, 60_000);
+    expect(recentlyFailing([bad, ok], now).size).toBe(0);
+  });
+});

@@ -214,9 +214,9 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
   const { ms: rangeMs, bucket: bucketMs } = RANGES[range];
   const since = now - rangeMs;
 
-  const [audits, swaps, balance, donated, evidence] = await Promise.all([
+  const [audits, swaps, balance, donated, evidence, hourly] = await Promise.all([
     prisma.auditLog.findMany({
-      where: { mintId: id, location: 'prague', timestamp: { gte: new Date(since90) } },
+      where: { mintId: id, location: 'prague', timestamp: { gte: new Date(now - 31 * DAY) } },
       orderBy: { timestamp: 'asc' },
       select: { timestamp: true, status: true, latency: true, keysetsMs: true, error: true, version: true },
     }),
@@ -230,7 +230,12 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
       where: { timestamp: { gte: new Date(now - 7 * DAY) } },
       select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true },
     }),
+    prisma.auditHourly.findMany({
+      where: { mintId: id, location: 'prague', hour: { gte: new Date(since90) } },
+      select: { hour: true, checks: true, up: true },
+    }),
   ]);
+  const rolledUntil = hourly.reduce((m, h) => Math.max(m, h.hour.getTime() + HOUR), 0);
   const blame = makeBlame(evidence, now);
 
   const days = lastDays(90, now);
@@ -250,9 +255,12 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
   for (const a of audits) {
     const t = a.timestamp.getTime();
     const isUp = a.status !== 'offline';
-    const d = dayMap.get(dayKey(t));
-    if (d) { d.total++; if (isUp) d.up++; }
-    for (const k of Object.keys(windows) as (keyof typeof windows)[]) {
+    if (t >= rolledUntil) {
+      const d = dayMap.get(dayKey(t));
+      if (d) { d.total++; if (isUp) d.up++; }
+      if (now - t <= windowMs['90d']) { windows['90d'].total++; if (isUp) windows['90d'].up++; }
+    }
+    for (const k of ['24h', '7d', '30d'] as const) {
       if (now - t <= windowMs[k]) { windows[k].total++; if (isUp) windows[k].up++; }
     }
     if (!isUp) {
@@ -274,6 +282,12 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
     }
   }
   if (open) incidents.push(open);
+  for (const h of hourly) {
+    const d = dayMap.get(dayKey(h.hour.getTime()));
+    if (d) { d.total += h.checks; d.up += h.up; }
+    windows['90d'].total += h.checks;
+    windows['90d'].up += h.up;
+  }
 
   const latency = latencyBuckets.map((vals, i) => {
     const sorted = [...vals].sort((a, b) => a - b);

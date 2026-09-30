@@ -179,3 +179,16 @@ model MintReview {
   @@unique([mintId, author])
   @@index([mintId, createdAt])
 }
+
+model AuditHourly {
+  mintId   String
+  location String
+  hour     DateTime
+  checks   Int
+  up       Int
+  p50      Int?
+  p95      Int?
+
+  @@id([mintId, location, hour])
+  @@index([mintId, location, hour])
+}

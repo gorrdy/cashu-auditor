@@ -44,3 +44,19 @@ export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * D
     }
   };
 }
+
+export function recentlyFailing(swaps: BlameSwap[], now = Date.now()) {
+  const blame = makeBlame(swaps, now);
+  const lastOk = new Map<string, number>();
+  const lastBad = new Map<string, number>();
+  for (const s of swaps) {
+    const t = s.timestamp.getTime();
+    if (s.status === 'success') {
+      for (const id of [s.sourceMintId, s.destMintId]) lastOk.set(id, Math.max(lastOk.get(id) ?? 0, t));
+      continue;
+    }
+    const id = blame(s);
+    if (id) lastBad.set(id, Math.max(lastBad.get(id) ?? 0, t));
+  }
+  return new Set([...lastBad].filter(([id, t]) => now - t < 86_400_000 && t > (lastOk.get(id) ?? 0)).map(([id]) => id));
+}

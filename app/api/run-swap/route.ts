@@ -4,6 +4,7 @@ import { authorized } from '@/lib/auth';
 import { withWalletLock } from '@/lib/lock';
 import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { homeMintUrl } from '@/lib/consolidate';
+import { budgetState } from '@/lib/budget';
 
 const MIN_SWAP = 10;
 const MAX_BALANCE_FRACTION = 0.1;
@@ -37,6 +38,8 @@ export async function GET(request: Request) {
 
   const result = await withWalletLock('run-swap', async () => {
     const recovered = await recoverPendingSwaps();
+    const budget = await budgetState();
+    if (!budget.allowed) return { recovered, budget: budget.reason };
 
     const now = Date.now();
     const [status, uptime] = await Promise.all([latestStatuses(), uptime24h(now)]);
