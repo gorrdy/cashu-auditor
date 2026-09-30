@@ -4,6 +4,7 @@ import { withWalletLock } from '@/lib/lock';
 import { homeMintUrl } from '@/lib/consolidate';
 import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { swappableMints, unspentBalance } from '@/lib/eligible';
+import { loadBackoff } from '@/lib/backoff';
 
 const FEE_BUFFER = 15;
 const MAX_EXPOSURE = 600;
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
 
   const result = await withWalletLock('swap-round', async () => {
     const recovered = await recoverPendingSwaps();
+    const backoff = await loadBackoff();
     const ring = await swappableMints();
     for (let i = ring.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -26,6 +28,14 @@ export async function GET(request: Request) {
       const source = ring[i];
       const dest = ring[(i + 1) % ring.length];
       const row = { from: source.url, to: dest.url };
+      if (!backoff.canSend(source.id)) {
+        results.push({ ...row, skipped: 'source backed off' });
+        continue;
+      }
+      if (!backoff.canReceive(dest.id)) {
+        results.push({ ...row, skipped: 'destination backed off' });
+        continue;
+      }
       if ((await unspentBalance(source.id)) < amount + FEE_BUFFER) {
         results.push({ ...row, skipped: 'source balance too low' });
         continue;

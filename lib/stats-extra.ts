@@ -1,6 +1,7 @@
 import { nip19 } from 'nostr-tools';
 import { prisma } from './prisma';
 import { RANGES, type RangeKey } from './stats';
+import { loadBackoff } from './backoff';
 
 const median = (values: (number | null | undefined)[]) => {
   const v = values.filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
@@ -21,7 +22,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
   const { ms: rangeMs, bucket: bucketMs } = RANGES[range];
   const since = now - rangeMs;
 
-  const [prague, frankfurt, events, checks, reviews, swaps, lost] = await Promise.all([
+  const [prague, frankfurt, events, checks, reviews, swaps, lost, backoff] = await Promise.all([
     prisma.auditLog.findMany({
       where: { mintId: id, location: 'prague', status: { not: 'offline' }, timestamp: { gte: new Date(since) } },
       select: { dnsMs: true, connectMs: true, tlsMs: true, ttfbMs: true, clockSkewMs: true },
@@ -39,6 +40,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
       select: { sourceMintId: true, destMintId: true, amount: true, fee: true, feeReserve: true, quoteMs: true, meltMs: true, mintMs: true, dleq: true },
     }),
     prisma.proof.aggregate({ where: { mintId: id, state: 'spent_external' }, _sum: { amount: true }, _count: true }),
+    loadBackoff(now),
   ]);
 
   const bucketCount = Math.ceil(rangeMs / bucketMs) + 1;
@@ -74,6 +76,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
   const fraUp = frankfurt.filter(a => a.status !== 'offline').length;
 
   return {
+    backoff: backoff.map.get(id) ?? null,
     timings: { prague: phases(prague), frankfurt: phases(frankfurt.filter(a => a.status !== 'offline')) },
     clockSkewMs: median(prague.map(r => r.clockSkewMs)),
     frankfurtLatency: buckets.map(v => median(v)),

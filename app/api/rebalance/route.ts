@@ -7,6 +7,7 @@ import { transfer } from '@/lib/transfer';
 import { swappableMints, unspentBalance } from '@/lib/eligible';
 import { recentlyFailing } from '@/lib/blame';
 import { SLOW_BELOW, totalBalance } from '@/lib/budget';
+import { loadBackoff } from '@/lib/backoff';
 
 const LOW = 250;
 const TARGET = 500;
@@ -30,18 +31,19 @@ export async function GET(request: Request) {
       }),
       now
     );
+    const backoff = await loadBackoff(now);
     const foreign = (await swappableMints()).filter(m => m.url !== homeUrl && !failing.has(m.id));
     const balances = new Map(await Promise.all(foreign.map(async m => [m.id, await unspentBalance(m.id)] as const)));
     const moves = [];
 
-    for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) > HIGH)) {
+    for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) > HIGH && backoff.canSend(m.id))) {
       const r = await transfer({ source: m, dest: home, amount: balances.get(m.id)! - TARGET });
       moves.push({ from: m.url, to: home.url, amount: r.amount, status: r.status, fee: r.fee, error: r.error });
     }
 
     let homeBalance = await unspentBalance(home.id);
     if (homeBalance < HOME_RESERVE) {
-      const donors = foreign.filter(m => (balances.get(m.id) ?? 0) - TARGET >= MIN_MOVE).sort((a, b) => balances.get(b.id)! - balances.get(a.id)!);
+      const donors = foreign.filter(m => (balances.get(m.id) ?? 0) - TARGET >= MIN_MOVE && backoff.canSend(m.id)).sort((a, b) => balances.get(b.id)! - balances.get(a.id)!);
       for (const m of donors) {
         if (homeBalance >= HOME_RESERVE) break;
         const r = await transfer({ source: m, dest: home, amount: balances.get(m.id)! - TARGET });
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
       })).map(r => r.destMintId)
     );
     if ((await totalBalance()) >= SLOW_BELOW) {
-      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id))) {
+      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id) && backoff.canReceive(m.id))) {
         const need = TARGET - (balances.get(m.id) ?? 0);
         if (homeBalance - need < HOME_RESERVE) break;
         const r = await transfer({ source: home, dest: m, amount: need });
