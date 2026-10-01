@@ -301,3 +301,27 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .filter { font-size: 13px; line-height: 18px; padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--ink-2); background: var(--surface); }
 .filter:hover { text-decoration: none; color: var(--ink); border-color: var(--ink-3); }
 .filter[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.search { flex: 1 1 220px; max-width: 320px; margin-right: 4px; }
+.search .field { padding: 5px 12px; font-size: 13px; border-radius: 999px; }
+@media (max-width: 599px) { .search { flex-basis: 100%; max-width: none; } }
+
+.filter-menu { position: relative; }
+.filter-menu > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  font-size: 13px; line-height: 18px; padding: 5px 12px 5px 12px; border: 1px solid var(--line-strong);
+  border-radius: 999px; background: var(--surface); color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.filter-menu > summary::-webkit-details-marker { display: none; }
+.filter-menu > summary::after { content: "▾"; font-size: 11px; color: var(--ink-3); }
+.filter-menu[open] > summary { border-color: var(--ink-3); }
+.filter-list {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 200px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12); display: flex; flex-direction: column;
+}
+.filter-list a { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; font-size: 14px; color: var(--ink); }
+.filter-list a:hover { background: var(--surface-2); text-decoration: none; }
+.filter-list .check { width: 16px; font-weight: 700; color: var(--copper-ink); text-align: center; }
+.filter-list .filter-clear { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; color: var(--copper-ink); font-size: 13px; }

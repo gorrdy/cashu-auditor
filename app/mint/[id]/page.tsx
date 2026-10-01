@@ -9,6 +9,7 @@ import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import LatencyChart from '@/components/LatencyChart';
 import SwapTable from '@/components/SwapTable';
+import CopyField from '@/components/CopyField';
 import { EventsCard, IntegrityCard, NetworkCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
@@ -256,10 +257,17 @@ export default async function MintPage({ params, searchParams }: Props) {
             <dt>Audit balance</dt><dd>{fmtSat(d.balance)}{d.reserved ? ` · ${fmtSat(d.reserved)} in flight` : ''}</dd>
             <dt>Donated here</dt><dd>{fmtSat(d.donated)}</dd>
           </dl>
-          <p className="small soft" style={{ margin: '20px 0 8px' }}>Badge for the mint operator</p>
+          <p className="small soft" style={{ margin: '20px 0 8px' }}>Uptime badge</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`/badge/${mint.id}.svg`} alt="Cashu Audit badge" height={20} />
-          <pre className="mono small" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', background: 'var(--surface-2)', padding: 10, borderRadius: 4, margin: '8px 0 0' }}>{`<a href="https://audit.cashu.cz/mint/${mint.id}"><img src="https://audit.cashu.cz/badge/${mint.id}.svg" alt="Cashu Audit"></a>`}</pre>
+          <details className="table-view">
+            <summary>Embed on your site</summary>
+            <p className="small soft" style={{ margin: '8px 0 0' }}>
+              For mint operators: paste one of these into your website or README to show this badge, linked to this page. It updates every few minutes.
+            </p>
+            <CopyField label="HTML" value={`<a href="https://audit.cashu.cz/mint/${mint.id}"><img src="https://audit.cashu.cz/badge/${mint.id}.svg" alt="Cashu Audit"></a>`} />
+            <CopyField label="Markdown" value={`[![Cashu Audit](https://audit.cashu.cz/badge/${mint.id}.svg)](https://audit.cashu.cz/mint/${mint.id})`} />
+          </details>
           <p className="small muted" style={{ margin: '8px 0 0' }}>Data for this mint: <a href={`/api/v1/mints/${mint.id}`}>JSON</a></p>
         </div>
       </section>

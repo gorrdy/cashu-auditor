@@ -127,8 +127,8 @@ Víc než dvě řady v jednom grafu nepoužíváme; místo toho víc grafů.
 - Základní jednotka 4 px. Mezery 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64.
 - Obsah max. 1200 px, boční okraj 16 px na mobilu, 32 px od 768 px.
 - Rádius: 4 px ovládací prvky a buňky, 8 px karty. Nic kulatějšího.
-- Oddělujeme **vlasovou linkou 1 px** (`--line`), ne stínem. Stín má jen
-  plovoucí tooltip.
+- Oddělujeme **vlasovou linkou 1 px** (`--line`), ne stínem. Stín mají jen
+  plovoucí prvky: tooltip a rozbalovací menu.
 - Karty nemají barevné pozadí hlavičky; nadpis karty je text, ne pruh.
 
 ## 7. Komponenty

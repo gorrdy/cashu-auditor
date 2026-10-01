@@ -45,6 +45,7 @@ model Mint {
   asName        String?
   country       String?
   netCheckedAt  DateTime?
+  offlineSince  DateTime?
   nuts          String?
   source        String     @default("manual")
   addedAt       DateTime   @default(now())

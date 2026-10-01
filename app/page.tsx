@@ -3,6 +3,8 @@ import { getOverview, getRecentSwaps, getSwapGraph, LONG_OFFLINE_DAYS, type Mint
 import MintGraph, { GraphLegend, GraphTable } from '@/components/MintGraph';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
+import SearchBox from '@/components/SearchBox';
+import { Suspense } from 'react';
 import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
@@ -59,12 +61,12 @@ const FILTERS = [
   { key: 'onion', label: 'Onion' },
 ] as const;
 
-type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string };
+type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string; q?: string };
 
 function filterQuery(p: Params, change: Partial<Record<keyof Params, string | undefined>> = {}, keepSort = true) {
   const q = new URLSearchParams();
   const merged = { ...p, ...change };
-  for (const k of ['online', 'free', 'ws', 'onion', 'unit'] as const) if (merged[k]) q.set(k, merged[k]!);
+  for (const k of ['q', 'online', 'free', 'ws', 'onion', 'unit'] as const) if (merged[k]) q.set(k, merged[k]!);
   if (keepSort) for (const k of ['sort', 'dir'] as const) if (merged[k]) q.set(k, merged[k]!);
   return q.toString();
 }
@@ -77,9 +79,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const [{ mints, totals, swapsPerDay, now }, recent, graphEdges] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph()]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
-  const active = mints.filter(m => !m.longOffline);
-  const archived = mints.filter(m => m.longOffline).sort((a, b) => (b.offlineSince ?? 0) - (a.offlineSince ?? 0));
-  const allUnits = [...new Set(active.flatMap(m => m.units))].filter(u => u !== 'sat').sort();
+  const terms = (params.q ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
+  const matches = (m: (typeof mints)[number]) => {
+    if (!terms.length) return true;
+    const hay = [m.name, m.url, m.version, mintLabel(m)].filter(Boolean).join(' ').toLowerCase();
+    return terms.every(t => hay.includes(t));
+  };
+  const allActive = mints.filter(m => !m.longOffline);
+  const active = allActive.filter(matches);
+  const archivedAll = mints.filter(m => m.longOffline);
+  const archived = archivedAll.filter(matches).sort((a, b) => (b.offlineSince ?? 0) - (a.offlineSince ?? 0));
+  const allUnits = [...new Set(allActive.flatMap(m => m.units))].filter(u => u !== 'sat').sort();
   const filtered = active.filter(m =>
     (!params.online || (m.latestStatus && m.latestStatus !== 'offline')) &&
     (!params.free || m.inputFeePpk === 0) &&
@@ -109,7 +119,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {active.length}</span></div>
+            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {allActive.length}</span></div>
             <div className="small soft">mints answering now · checked {fmtAgo(now, totals.lastCheck)}</div>
           </div>
         </div>
@@ -144,24 +154,30 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <UptimeLegend />
         </div>
         <nav className="filters" aria-label="Filter mints">
-          {FILTERS.map(f => {
-            const on = !!params[f.key];
+          <Suspense fallback={null}><SearchBox /></Suspense>
+          {(() => {
+            const options = [
+              ...FILTERS.map(f => ({ key: f.key, label: f.label, on: !!params[f.key], href: `/?${filterQuery(params, { [f.key]: params[f.key] ? undefined : '1' })}` })),
+              ...allUnits.map(u => ({ key: `unit-${u}`, label: `Unit ${u.toUpperCase()}`, on: params.unit === u, href: `/?${filterQuery(params, { unit: params.unit === u ? undefined : u })}` })),
+            ];
+            const count = options.filter(o => o.on).length;
             return (
-              <Link key={f.key} className="filter" aria-pressed={on} href={`/?${filterQuery(params, { [f.key]: on ? undefined : '1' })}`} scroll={false} prefetch={false}>
-                {f.label}
-              </Link>
+              <details className="filter-menu">
+                <summary>Filters{count ? ` · ${count}` : ''}</summary>
+                <div className="filter-list" role="menu">
+                  {options.map(o => (
+                    <Link key={o.key} role="menuitemcheckbox" aria-checked={o.on} href={o.href} scroll={false} prefetch={false}>
+                      <span className="check" aria-hidden="true">{o.on ? '✓' : ''}</span>{o.label}
+                    </Link>
+                  ))}
+                  {count > 0 && (
+                    <Link className="filter-clear" href={`/?${filterQuery({ sort: params.sort, dir: params.dir, q: params.q })}`} scroll={false} prefetch={false}>Clear filters</Link>
+                  )}
+                </div>
+              </details>
             );
-          })}
-          {allUnits.map(u => {
-            const on = params.unit === u;
-            return (
-              <Link key={u} className="filter" aria-pressed={on} href={`/?${filterQuery(params, { unit: on ? undefined : u })}`} scroll={false} prefetch={false}>
-                {u.toUpperCase()}
-              </Link>
-            );
-          })}
-          <span className="small muted">{rows.length} of {active.length} mints</span>
-          {query && <Link className="small" href={`/?${filterQuery({ sort: params.sort, dir: params.dir })}`} scroll={false} prefetch={false}>Clear</Link>}
+          })()}
+          <span className="small muted">{rows.length} of {allActive.length} mints{terms.length && archivedAll.length ? ` · ${archived.length} of ${archivedAll.length} long offline` : ''}</span>
         </nav>
         <div className="table-wrap">
           <table className="data">
@@ -209,14 +225,14 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>{mints.length ? 'No mint matches these filters.' : 'No mints tracked yet.'}</td></tr>
+                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>{mints.length ? (archived.length ? 'No active mint matches. See long offline mints below.' : 'No mint matches these filters.') : 'No mints tracked yet.'}</td></tr>
               )}
             </tbody>
           </table>
         </div>
         {archived.length > 0 && (
-          <details className="table-view archive">
-            <summary>Offline for more than {LONG_OFFLINE_DAYS} days ({archived.length})</summary>
+          <details className="table-view archive" open={terms.length > 0}>
+            <summary>Offline for more than {LONG_OFFLINE_DAYS} days ({archived.length}{terms.length ? ` of ${archivedAll.length}` : ''})</summary>
             <p className="small soft" style={{ margin: '8px 0 0' }}>Still checked every 5 minutes. A mint that answers again moves back to the table above.</p>
             <div className="table-wrap">
               <table className="data">

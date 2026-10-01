@@ -91,7 +91,7 @@ async function onlineHistory() {
 
 export async function getOverview(now = Date.now()) {
   const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews, history] = await Promise.all([
-    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true } }),
+    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true } }),
     prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
       SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
       JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
@@ -198,12 +198,13 @@ export async function getOverview(now = Date.now()) {
     });
     const bal = balanceBy.get(m.id) ?? { unspent: 0, reserved: 0 };
     const h = history.get(m.id);
-    const offlineSince = l?.status === 'offline' && h ? (h.lastUp ?? h.first) : null;
+    const measured = l?.status === 'offline' && h ? (h.lastUp ?? h.first) : null;
+    const offlineSince = l?.status === 'offline' ? Math.min(measured ?? Infinity, m.offlineSince?.getTime() ?? Infinity) : null;
     return {
       ...m,
-      offlineSince,
+      offlineSince: offlineSince === Infinity ? null : offlineSince,
       lastOnlineAt: h?.lastUp ?? null,
-      longOffline: offlineSince != null && now - offlineSince > LONG_OFFLINE_DAYS * DAY,
+      longOffline: offlineSince != null && offlineSince !== Infinity && now - offlineSince > LONG_OFFLINE_DAYS * DAY,
       latestStatus: l?.status,
       latestLatency: l && l.status !== 'offline' ? l.latency : null,
       latestError: l?.error ?? null,

@@ -84,7 +84,7 @@ async function audit() {
         });
         events++;
       }
-      await prisma.mint.update({ where: { id: mint.id }, data });
+      await prisma.mint.update({ where: { id: mint.id }, data: { ...data, ...(mint.offlineSince ? { offlineSince: null } : {}) } });
     } else if (result.cert) {
       await prisma.mint.update({
         where: { id: mint.id },
