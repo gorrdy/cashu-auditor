@@ -66,8 +66,31 @@ function stateFor(opts: {
   return { state: reasons.length ? 'warn' : 'ok', reasons };
 }
 
+export const LONG_OFFLINE_DAYS = 30;
+
+async function onlineHistory() {
+  const [raw, hourly] = await Promise.all([
+    prisma.$queryRaw<{ mintId: string; lastUp: number | null; first: number }[]>`
+      SELECT mintId, MAX(CASE WHEN status != 'offline' THEN timestamp END) AS lastUp, MIN(timestamp) AS first
+      FROM AuditLog WHERE location = 'prague' GROUP BY mintId`,
+    prisma.$queryRaw<{ mintId: string; lastUp: number | null; first: number }[]>`
+      SELECT mintId, MAX(CASE WHEN up > 0 THEN hour END) AS lastUp, MIN(hour) AS first
+      FROM AuditHourly WHERE location = 'prague' GROUP BY mintId`,
+  ]);
+  const out = new Map<string, { lastUp: number | null; first: number }>();
+  for (const r of [...raw, ...hourly]) {
+    const prev = out.get(r.mintId);
+    const lastUp = r.lastUp != null ? Number(r.lastUp) : null;
+    out.set(r.mintId, {
+      lastUp: prev?.lastUp != null && lastUp != null ? Math.max(prev.lastUp, lastUp) : prev?.lastUp ?? lastUp,
+      first: prev ? Math.min(prev.first, Number(r.first)) : Number(r.first),
+    });
+  }
+  return out;
+}
+
 export async function getOverview(now = Date.now()) {
-  const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews] = await Promise.all([
+  const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews, history] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true } }),
     prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
       SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
@@ -91,6 +114,7 @@ export async function getOverview(now = Date.now()) {
       orderBy: { timestamp: 'desc' },
     }),
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
+    onlineHistory(),
   ]);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
@@ -173,8 +197,13 @@ export async function getOverview(now = Date.now()) {
       reviewCount: rv?.count ?? 0,
     });
     const bal = balanceBy.get(m.id) ?? { unspent: 0, reserved: 0 };
+    const h = history.get(m.id);
+    const offlineSince = l?.status === 'offline' && h ? (h.lastUp ?? h.first) : null;
     return {
       ...m,
+      offlineSince,
+      lastOnlineAt: h?.lastUp ?? null,
+      longOffline: offlineSince != null && now - offlineSince > LONG_OFFLINE_DAYS * DAY,
       latestStatus: l?.status,
       latestLatency: l && l.status !== 'offline' ? l.latency : null,
       latestError: l?.error ?? null,

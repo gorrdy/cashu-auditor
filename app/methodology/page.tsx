@@ -83,6 +83,7 @@ export default function Methodology() {
         <li><StateBadge kind="warn" /> answering, but uptime in 24 h is below 99 %, keysets are missing, a swap is pending, or the last swap through it failed at its step.</li>
         <li><StateBadge kind="error" /> did not answer the last check.</li>
         <li><StateBadge kind="unknown" /> added but not checked yet.</li>
+        <li>Mints that have not answered for more than 30 days are listed separately below the table. They are still checked and return automatically once they answer.</li>
       </ul>
 
       <h2 id="api">Open data</h2>

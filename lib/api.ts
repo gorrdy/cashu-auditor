@@ -30,6 +30,8 @@ export async function mintList() {
       onion: !!m.onionUrl,
       swaps: { minted: m.mints, melted: m.melts, attributedFailures: m.errors },
       lastCheck: m.checkedAt ? new Date(m.checkedAt).toISOString() : null,
+      offlineSince: m.offlineSince ? new Date(m.offlineSince).toISOString() : null,
+      longOffline: m.longOffline,
       page: `https://audit.cashu.cz/mint/${m.id}`,
     })),
   };

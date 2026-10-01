@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getOverview, getRecentSwaps, getSwapGraph, type MintState } from '@/lib/stats';
+import { getOverview, getRecentSwaps, getSwapGraph, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
 import MintGraph, { GraphLegend, GraphTable } from '@/components/MintGraph';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
@@ -7,7 +7,7 @@ import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
 import { AddMintForm, DonateForm } from '@/components/Forms';
-import { fmtAgo, fmtDayKey, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
+import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
 
@@ -77,8 +77,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const [{ mints, totals, swapsPerDay, now }, recent, graphEdges] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph()]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
-  const allUnits = [...new Set(mints.flatMap(m => m.units))].filter(u => u !== 'sat').sort();
-  const filtered = mints.filter(m =>
+  const active = mints.filter(m => !m.longOffline);
+  const archived = mints.filter(m => m.longOffline).sort((a, b) => (b.offlineSince ?? 0) - (a.offlineSince ?? 0));
+  const allUnits = [...new Set(active.flatMap(m => m.units))].filter(u => u !== 'sat').sort();
+  const filtered = active.filter(m =>
     (!params.online || (m.latestStatus && m.latestStatus !== 'offline')) &&
     (!params.free || m.inputFeePpk === 0) &&
     (!params.ws || m.websockets) &&
@@ -107,7 +109,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {totals.tracked}</span></div>
+            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {active.length}</span></div>
             <div className="small soft">mints answering now · checked {fmtAgo(now, totals.lastCheck)}</div>
           </div>
         </div>
@@ -158,7 +160,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               </Link>
             );
           })}
-          <span className="small muted">{rows.length} of {mints.length} mints</span>
+          <span className="small muted">{rows.length} of {active.length} mints</span>
           {query && <Link className="small" href={`/?${filterQuery({ sort: params.sort, dir: params.dir })}`} scroll={false} prefetch={false}>Clear</Link>}
         </nav>
         <div className="table-wrap">
@@ -212,6 +214,35 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             </tbody>
           </table>
         </div>
+        {archived.length > 0 && (
+          <details className="table-view archive">
+            <summary>Offline for more than {LONG_OFFLINE_DAYS} days ({archived.length})</summary>
+            <p className="small soft" style={{ margin: '8px 0 0' }}>Still checked every 5 minutes. A mint that answers again moves back to the table above.</p>
+            <div className="table-wrap">
+              <table className="data">
+                <thead><tr><th>Mint</th><th className="c-sm">Last online</th><th className="r">Offline for</th><th className="c-md">Last error</th></tr></thead>
+                <tbody>
+                  {archived.map(m => (
+                    <tr key={m.id}>
+                      <td>
+                        <div className="mint-cell">
+                          <MintIcon id={m.id} hash={m.iconHash} />
+                          <div style={{ minWidth: 0 }}>
+                            <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
+                            {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="nowrap soft c-sm">{m.lastOnlineAt ? fmtDate(m.lastOnlineAt) : 'Never seen online'}</td>
+                      <td className="r nowrap">{m.offlineSince ? fmtDuration(now - m.offlineSince) : '—'}</td>
+                      <td className="small soft cell-wrap c-md">{m.latestError ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
         <p className="small muted" style={{ marginTop: 8 }}>
           Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Errors count failed swaps attributed to the mint.
         </p>
