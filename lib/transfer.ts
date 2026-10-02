@@ -34,8 +34,15 @@ export function withTimeout<T>(p: Promise<T>, ms = OP_TIMEOUT_MS): Promise<T> {
   ]).finally(() => clearTimeout(timer));
 }
 
+const INTERNAL_ERROR = /prisma|invocation|sqlite|\/srv\/|\/home\/|\/etc\/|\/opt\/|node_modules|\bat (async )?[\w.<>]+ \(|TypeError|ReferenceError|RangeError|SyntaxError|Cannot read prop/i;
+
 export function errorMessage(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error)).slice(0, 500);
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if (INTERNAL_ERROR.test(raw)) {
+    console.error('Internal error:', error);
+    return 'Internal auditor error';
+  }
+  return (error instanceof Error ? error.message : raw).split('\n')[0].slice(0, 300);
 }
 
 async function walletFor(url: string) {
