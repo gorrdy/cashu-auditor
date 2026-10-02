@@ -96,6 +96,8 @@ model Swap {
   meltMs       Int?
   mintMs       Int?
   dleq         String?
+  paymentHash  String?
+  preimageOk   Boolean?
   timestamp    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

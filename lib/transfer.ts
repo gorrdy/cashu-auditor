@@ -3,6 +3,7 @@ import type { Proof as StoredProof, Swap } from './generated/prisma/client';
 import { prisma } from './prisma';
 import { createWallet, restoreProofs } from './wallet';
 import { publish } from './events';
+import { paymentHashOf, preimageMatches } from './bolt11';
 
 const OP_TIMEOUT_MS = 15_000;
 const MELT_TIMEOUT_MS = 60_000;
@@ -73,25 +74,30 @@ async function releaseReserved(swapId: string) {
   await prisma.proof.updateMany({ where: { swapId, state: 'reserved' }, data: { state: 'unspent', swapId: null } });
 }
 
-async function settleMelt(swap: Swap, change: CashuProof[]) {
+export const FAKE_PREIMAGE = 'Source reported the payment as paid with a preimage that does not match the invoice';
+
+async function settleMelt(swap: Swap, change: CashuProof[], preimage?: unknown) {
   const reserved = await prisma.proof.findMany({ where: { swapId: swap.id, state: 'reserved' } });
   const spent = sum(reserved);
   await prisma.proof.deleteMany({ where: { swapId: swap.id, state: 'reserved' } });
   await storeProofs(swap.sourceMintId, change);
   const fee = Math.max(0, spent - swap.amount - sum(change));
-  return prisma.swap.update({ where: { id: swap.id }, data: { stage: 'mint', fee } });
+  return prisma.swap.update({ where: { id: swap.id }, data: { stage: 'mint', fee, preimageOk: preimageMatches(swap.paymentHash, preimage) } });
 }
 
 type MeltOutcome = 'paid' | 'unpaid' | 'pending';
 
 async function resolveMelt(wallet: Wallet, swap: Swap): Promise<{ outcome: MeltOutcome; swap: Swap }> {
   let state: string;
+  let preimage: unknown;
   try {
-    state = (await withTimeout(wallet.checkMeltQuoteBolt11(swap.meltQuoteId!))).state;
+    const quote = await withTimeout(wallet.checkMeltQuoteBolt11(swap.meltQuoteId!));
+    state = quote.state;
+    preimage = quote.payment_preimage;
   } catch {
     return { outcome: 'pending', swap };
   }
-  if (state === 'PAID') return { outcome: 'paid', swap: await settleMelt(swap, []) };
+  if (state === 'PAID') return { outcome: 'paid', swap: await settleMelt(swap, [], preimage) };
   if (state !== 'UNPAID') return { outcome: 'pending', swap };
 
   const reserved = await prisma.proof.findMany({ where: { swapId: swap.id, state: 'reserved' } });
@@ -138,7 +144,13 @@ async function completeMint(wallet: Wallet, swap: Swap, destUrl: string): Promis
       return { status: 'pending', error: `Restore: ${errorMessage(error)}` };
     }
   }
-  if (quoteState !== 'PAID') return { status: 'pending', error: 'Invoice paid but mint quote still UNPAID' };
+  if (quoteState !== 'PAID') {
+    if (swap.preimageOk === false) {
+      await prisma.swap.update({ where: { id: swap.id }, data: { stage: 'melt' } });
+      return { status: 'failed', error: FAKE_PREIMAGE };
+    }
+    return { status: 'pending', error: 'Invoice paid but mint quote still UNPAID' };
+  }
 
   try {
     const started = Date.now();
@@ -250,6 +262,7 @@ export async function transfer(opts: {
       status: 'pending',
       stage: 'melt',
       mintQuoteId: mintQuote!.quote,
+      paymentHash: paymentHashOf(mintQuote!.request),
       meltQuoteId: meltQuote!.quote,
       timestamp: new Date(started),
       quoteMs: Date.now() - quoteStarted,
@@ -273,7 +286,7 @@ export async function transfer(opts: {
     const res = await withTimeout(sourceWallet.meltProofsBolt11(meltQuote!, send), MELT_TIMEOUT_MS);
     if (res.quote.state === 'PAID') {
       await prisma.swap.update({ where: { id: swap.id }, data: { meltMs: Date.now() - meltStarted } });
-      swap = await settleMelt(swap, res.change ?? []);
+      swap = await settleMelt(swap, res.change ?? [], res.quote.payment_preimage);
       outcome = 'paid';
     } else {
       meltError = `Melt state ${res.quote.state}`;

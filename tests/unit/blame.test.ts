@@ -61,3 +61,18 @@ describe('recentlyFailing', () => {
     expect(recentlyFailing([bad, ok], now).size).toBe(0);
   });
 });
+
+describe('payment proof', () => {
+  it('blames the source when its preimage does not match the invoice', () => {
+    const x = { ...s('L', 'P', 'pending', 'mint', 'Invoice paid but mint quote still UNPAID'), preimageOk: false };
+    expect(makeBlame([x], now)(x)).toBe('L');
+  });
+  it('blames nobody when the destination is unpaid and the preimage is unknown', () => {
+    const x = s('L', 'P', 'pending', 'mint', 'Invoice paid but mint quote still UNPAID');
+    expect(makeBlame([x], now)(x)).toBeNull();
+  });
+  it('blames the destination when the payment is proven but minting fails', () => {
+    const x = { ...s('L', 'P', 'failed', 'mint', 'Mint: HTTP 500'), preimageOk: true };
+    expect(makeBlame([x], now)(x)).toBe('P');
+  });
+});

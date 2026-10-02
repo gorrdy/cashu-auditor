@@ -45,7 +45,7 @@ export function computeBackoff(swaps: BlameSwap[], now = Date.now()) {
 export async function loadBackoff(now = Date.now()) {
   const swaps = await prisma.swap.findMany({
     where: { OR: [{ timestamp: { gte: new Date(now - 7 * 86_400_000) } }, { status: 'pending' }] },
-    select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true },
+    select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
   });
   const map = computeBackoff(swaps, now);
   return {

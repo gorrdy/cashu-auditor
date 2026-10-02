@@ -110,7 +110,7 @@ export async function getOverview(now = Date.now()) {
       select: { status: true, timestamp: true, amount: true },
     }),
     prisma.swap.findMany({
-      select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
+      select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     }),
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
@@ -287,13 +287,13 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
     }),
     prisma.swap.findMany({
       where: { OR: [{ sourceMintId: id }, { destMintId: id }] },
-      select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
+      select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
     }),
     prisma.proof.groupBy({ by: ['state'], where: { mintId: id }, _sum: { amount: true } }),
     prisma.donation.aggregate({ where: { mintId: id }, _sum: { amount: true } }),
     prisma.swap.findMany({
       where: { timestamp: { gte: new Date(now - 7 * DAY) } },
-      select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true },
+      select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
     }),
     prisma.auditHourly.findMany({
       where: { mintId: id, location: 'prague', hour: { gte: new Date(since90) } },

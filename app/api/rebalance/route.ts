@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const failing = recentlyFailing(
       await prisma.swap.findMany({
         where: { timestamp: { gte: new Date(now - 7 * 86_400_000) } },
-        select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true },
+        select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
       }),
       now
     );

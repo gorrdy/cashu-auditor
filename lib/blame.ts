@@ -8,6 +8,7 @@ export type BlameSwap = {
   sourceMintId: string;
   destMintId: string;
   timestamp: Date;
+  preimageOk?: boolean | null;
 };
 
 export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * DAY) {
@@ -26,10 +27,14 @@ export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * D
 
   return (s: BlameSwap): string | null => {
     if (s.status === 'success') return null;
-    if (s.status === 'pending') return s.stage === 'mint' ? s.destMintId : s.stage === 'melt' ? s.sourceMintId : null;
+    if (s.stage === 'mint') {
+      if (s.preimageOk === false) return s.sourceMintId;
+      if (s.preimageOk !== true && /still UNPAID/.test(s.error ?? '')) return null;
+      return s.destMintId;
+    }
+    if (s.status === 'pending') return s.stage === 'melt' ? s.sourceMintId : null;
     switch (s.stage) {
       case 'mint_quote':
-      case 'mint':
         return s.destMintId;
       case 'melt_quote':
         return s.sourceMintId;
