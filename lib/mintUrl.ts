@@ -83,3 +83,5 @@ export async function assertPublicMintUrl(mintUrl: string): Promise<void> {
     throw new Error('Private address');
   }
 }
+
+export const isMintId = (id: string) => /^[a-z0-9]{20,32}$/.test(id);

@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
+import { isMintId } from '@/lib/mintUrl';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isMintId(id)) return new Response('Not found', { status: 404 });
   const mint = await prisma.mint.findUnique({ where: { id }, select: { iconData: true, iconType: true, iconHash: true } });
   if (!mint?.iconData || !mint.iconType || !mint.iconHash) return new Response('Not found', { status: 404 });
 

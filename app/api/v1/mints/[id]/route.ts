@@ -2,9 +2,11 @@ import { json } from '@/lib/api';
 import { getMintDetail } from '@/lib/stats';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
+import { isMintId } from '@/lib/mintUrl';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isMintId(id)) return json({ error: 'Not found' }, 404);
   const [d, x] = await Promise.all([getMintDetail(id, '7d'), getMintExtras(id, '7d')]);
   if (!d) return json({ error: 'Not found' }, 404);
   const m = d.mint;

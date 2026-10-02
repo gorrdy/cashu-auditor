@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DAY, getMintDetail, getRecentSwaps, parseRange, RANGES, type RangeKey } from '@/lib/stats';
 import { prisma } from '@/lib/prisma';
+import { isMintId } from '@/lib/mintUrl';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
 import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
@@ -21,12 +22,13 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ range?: 
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const mint = await prisma.mint.findUnique({ where: { id }, select: { name: true, url: true } });
+  const mint = isMintId(id) ? await prisma.mint.findUnique({ where: { id }, select: { name: true, url: true } }) : null;
   return { title: mint ? mintLabel(mint) : 'Mint not found' };
 }
 
 export default async function MintPage({ params, searchParams }: Props) {
   const { id } = await params;
+  if (!isMintId(id)) notFound();
   const range: RangeKey = parseRange((await searchParams).range);
   const [d, swaps, x] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range)]);
   if (!d) notFound();

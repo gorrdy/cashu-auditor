@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { isMintId } from '@/lib/mintUrl';
 
 const DAY = 86_400_000;
 
@@ -10,7 +11,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = (await params).id.replace(/\.svg$/, '');
-  const mint = await prisma.mint.findUnique({ where: { id }, select: { id: true } });
+  const mint = isMintId(id) ? await prisma.mint.findUnique({ where: { id }, select: { id: true } }) : null;
   if (!mint) return new Response('Not found', { status: 404 });
 
   const since = new Date(Date.now() - 30 * DAY);
