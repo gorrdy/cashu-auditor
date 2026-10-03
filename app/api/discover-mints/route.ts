@@ -5,6 +5,7 @@ import { authorized } from '@/lib/auth';
 import { normalizeMintUrl } from '@/lib/mintUrl';
 import { mapLimit, probeMint } from '@/lib/probe';
 import { publish } from '@/lib/events';
+import { findConfirmedAlias } from '@/lib/alias';
 
 const RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.8333.space', 'wss://relay.nostr.band'];
 const MAX_MINTS = 500;
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     let added = 0, rejected = 0;
     for (const { url, probe } of probes) {
       if (!probe.info) { rejected++; continue; }
-      if (probe.info.pubkey && (await prisma.mint.findFirst({ where: { pubkey: probe.info.pubkey }, select: { id: true } }))) continue;
+      if (await findConfirmedAlias(url, probe.info.pubkey)) continue;
       if (added >= MAX_NEW_PER_RUN || known.size >= MAX_MINTS) break;
       const mint = await prisma.mint.create({
         data: { url, source: 'nostr', name: probe.info.name?.slice(0, 120), version: probe.info.version?.slice(0, 60), pubkey: probe.info.pubkey },

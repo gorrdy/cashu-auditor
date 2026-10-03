@@ -10,6 +10,7 @@ import { assertPublicMintUrl, normalizeMintUrl } from '@/lib/mintUrl';
 import { probeMint } from '@/lib/probe';
 import { errorMessage, withTimeout } from '@/lib/transfer';
 import { publish } from '@/lib/events';
+import { findConfirmedAlias } from '@/lib/alias';
 
 export type FormResult = { ok?: string; error?: string } | null;
 
@@ -25,10 +26,8 @@ export async function addMint(_prev: FormResult, formData: FormData): Promise<Fo
 
   const probe = await probeMint(url);
   if (!probe.info) return { error: `No Cashu mint answered at ${url} (${probe.error ?? 'unknown error'}).` };
-  if (probe.info.pubkey) {
-    const alias = await prisma.mint.findFirst({ where: { pubkey: probe.info.pubkey }, select: { url: true } });
-    if (alias) return { ok: `This mint is already tracked as ${alias.url}.` };
-  }
+  const alias = await findConfirmedAlias(url, probe.info.pubkey);
+  if (alias) return { ok: `This mint is already tracked as ${alias.url}.` };
 
   await prisma.mint.create({
     data: {

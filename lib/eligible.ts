@@ -34,11 +34,11 @@ export const OPERATOR_EXPOSURE = 600;
 
 export async function trustState(now = Date.now()) {
   const [mints, balances, payouts] = await Promise.all([
-    prisma.mint.findMany({ select: { id: true, url: true, pubkey: true, addedAt: true } }),
+    prisma.mint.findMany({ select: { id: true, url: true, aliasOfId: true, addedAt: true } }),
     prisma.proof.groupBy({ by: ['mintId'], where: { state: { in: ['unspent', 'reserved'] } }, _sum: { amount: true } }),
     prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success', preimageOk: { not: false } } }),
   ]);
-  const operatorOf = new Map(mints.map(m => [m.id, m.pubkey ?? m.url]));
+  const operatorOf = new Map(mints.map(m => [m.id, m.aliasOfId ?? m.id]));
   const held = new Map<string, number>();
   for (const b of balances) {
     const op = operatorOf.get(b.mintId) ?? b.mintId;

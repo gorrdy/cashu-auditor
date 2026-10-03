@@ -29,7 +29,8 @@ export default function Methodology() {
       </p>
       <ul>
         <li>Each swap is between 10 and 100 sat and at most 10 % of the audit balance. Sources are online mints with balance.</li>
-        <li>A destination must be tracked for at least 3 days and answer at least 95 % of checks in the last 24 hours. Among those, the one swapped to least recently goes first. Until a mint has paid out a swap itself, it receives at most 5 sat, and the auditor never holds more than 600 sat at any mint other than its home mint.</li>
+        <li>A destination must be tracked for at least 3 days and answer at least 95 % of checks in the last 24 hours. Among those, the one swapped to least recently goes first. Until a mint has paid out a swap itself, it receives at most 5 sat, and the auditor never holds more than 600 sat with any operator other than its home mint.</li>
+        <li>Two URLs count as the same mint only when a quote created at one URL is visible at the other, which proves a shared database. A matching pubkey alone is not enough, because anyone can copy it. Confirmed aliases share the 600 sat limit.</li>
         <li>Proofs are locked before paying. If a payment times out, the auditor asks the mint for the quote state later and settles or releases the proofs. A swap is never paid twice.</li>
         <li>A failure is attributed only where the evidence points. A refused quote or failed minting counts against the destination, a refused melt quote or a payment stuck in pending against the source.</li>
         <li>A Lightning routing failure can sit anywhere on the path, so by default it counts against neither mint. It is attributed to the destination only after payments to it failed from at least two different mints with no successful payment in 7 days, and to the source likewise for payments to two different destinations.</li>
