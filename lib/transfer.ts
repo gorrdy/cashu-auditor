@@ -9,6 +9,7 @@ const OP_TIMEOUT_MS = 15_000;
 const MELT_TIMEOUT_MS = 60_000;
 const MINT_TIMEOUT_MS = 30_000;
 const MAX_RECOVERY_ATTEMPTS = 48;
+const RECOVERY_INTERVAL_MS = 5 * 60_000;
 const MAX_FEE_RESERVE_SAT = 10;
 
 export type MintRef = { id: string; url: string };
@@ -317,7 +318,7 @@ export async function transfer(opts: {
 
 export async function recoverPendingSwaps() {
   const pending = await prisma.swap.findMany({
-    where: { status: 'pending' },
+    where: { status: 'pending', updatedAt: { lt: new Date(Date.now() - RECOVERY_INTERVAL_MS) } },
     include: { sourceMint: { select: { url: true } }, destMint: { select: { url: true } } },
     orderBy: { timestamp: 'asc' },
   });
