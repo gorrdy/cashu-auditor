@@ -7,40 +7,26 @@ import { prisma } from '@/lib/prisma';
 import { consolidateToHomeMint } from '@/lib/consolidate';
 import { withWalletLock } from '@/lib/lock';
 import { assertPublicMintUrl, normalizeMintUrl } from '@/lib/mintUrl';
-import { probeMint } from '@/lib/probe';
 import { errorMessage, withTimeout } from '@/lib/transfer';
 import { publish } from '@/lib/events';
-import { findConfirmedAlias } from '@/lib/alias';
+import { trackMint } from '@/lib/track';
 
 export type FormResult = { ok?: string; error?: string } | null;
 
-const MAX_MINTS = 500;
-
 export async function addMint(_prev: FormResult, formData: FormData): Promise<FormResult> {
-  const url = normalizeMintUrl(String(formData.get('url') ?? ''));
-  if (!url) return { error: 'Enter an https:// mint URL.' };
-
-  const existing = await prisma.mint.findUnique({ where: { url }, select: { id: true } });
-  if (existing) return { ok: `${url} is already tracked.` };
-  if ((await prisma.mint.count()) >= MAX_MINTS) return { error: 'Mint limit reached.' };
-
-  const probe = await probeMint(url);
-  if (!probe.info) return { error: `No Cashu mint answered at ${url} (${probe.error ?? 'unknown error'}).` };
-  const alias = await findConfirmedAlias(url, probe.info.pubkey);
-  if (alias) return { ok: `This mint is already tracked as ${alias.url}.` };
-
-  await prisma.mint.create({
-    data: {
-      url,
-      source: 'manual',
-      name: probe.info.name?.slice(0, 120),
-      version: probe.info.version?.slice(0, 60),
-      pubkey: probe.info.pubkey,
-    },
-  });
-  revalidatePath('/');
-  publish('mints');
-  return { ok: `Added ${probe.info.name ?? url}. First audit within 5 minutes.` };
+  const r = await trackMint(String(formData.get('url') ?? ''), 'manual');
+  switch (r.status) {
+    case 'added':
+      revalidatePath('/');
+      publish('mints');
+      return { ok: `Added ${r.name ?? r.url}. First audit within 5 minutes.` };
+    case 'exists':
+      return { ok: `${r.url} is already tracked.` };
+    case 'alias':
+      return { ok: `This mint is already tracked as ${r.existing}.` };
+    default:
+      return { error: r.error };
+  }
 }
 
 export async function donateToken(_prev: FormResult, formData: FormData): Promise<FormResult> {
