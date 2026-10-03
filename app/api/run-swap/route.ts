@@ -79,6 +79,7 @@ export async function GET(request: Request) {
         return (
           m.id !== source.id &&
           backoff.canReceive(m.id) &&
+          backoff.canPair(source.id, m.id) &&
           (m.url === home || ((balanceOf.get(m.id) ?? 0) + amount <= MAX_EXPOSURE && trust.canHoldMore(m.id, amount))) &&
           now - m.addedAt.getTime() >= DEST_MIN_AGE_MS &&
           !!u && u.total >= DEST_MIN_CHECKS && u.up / u.total >= DEST_MIN_UPTIME
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
 
     const attempts = [];
     for (const dest of dests.slice(0, MAX_DEST_ATTEMPTS)) {
-      const r = await transfer({ source, dest, amount: proven.has(dest.id) ? amount : Math.min(amount, UNPROVEN_DEST_MAX) });
+      const r = await transfer({ source, dest, amount: proven.has(dest.id) ? amount : Math.min(amount, UNPROVEN_DEST_MAX), maxAmount: proven.has(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX });
       attempts.push({ dest: dest.url, ...r });
       if (r.status !== 'failed' || r.fundsMoved || r.stage !== 'mint_quote') break;
     }

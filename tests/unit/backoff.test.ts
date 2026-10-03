@@ -34,3 +34,17 @@ describe('computeBackoff', () => {
     expect(r.size).toBe(0);
   });
 });
+
+describe('computePairBackoff', () => {
+  it('pauses a pair after routing failures and doubles', async () => {
+    const { computePairBackoff } = await import('@/lib/backoff');
+    const swaps = [s('A', 'X', 'failed', 'melt', 3, 'no_route'), s('A', 'X', 'failed', 'melt', 2, 'no_route')];
+    expect(computePairBackoff(swaps, now).get('A>X')).toBe(now - 2 * HOUR + 2 * HOUR);
+    expect(computePairBackoff(swaps, now).get('B>X')).toBeUndefined();
+  });
+  it('clears after the pair succeeds', async () => {
+    const { computePairBackoff } = await import('@/lib/backoff');
+    const swaps = [s('A', 'X', 'failed', 'melt', 3, 'no_route'), s('A', 'X', 'success', null, 1)];
+    expect(computePairBackoff(swaps, now).get('A>X')).toBeUndefined();
+  });
+});

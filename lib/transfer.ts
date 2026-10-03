@@ -195,10 +195,25 @@ async function finish(swap: Swap, status: 'success' | 'failed' | 'pending', erro
   };
 }
 
+async function amountLimits(sourceId: string, destId: string) {
+  const rows = await prisma.mint.findMany({ where: { id: { in: [sourceId, destId] } }, select: { id: true, methods: true } });
+  const methods = (id: string) => {
+    const raw = rows.find(r => r.id === id)?.methods;
+    return raw ? (JSON.parse(raw) as { op: string; method: string; unit: string; min?: number; max?: number }[]) : [];
+  };
+  const mintSide = methods(destId).find(m => m.op === 'mint' && m.method === 'bolt11' && m.unit === 'sat');
+  const meltSide = methods(sourceId).find(m => m.op === 'melt' && m.method === 'bolt11' && m.unit === 'sat');
+  return {
+    min: Math.max(mintSide?.min ?? 1, meltSide?.min ?? 1),
+    max: Math.min(mintSide?.max ?? Infinity, meltSide?.max ?? Infinity),
+  };
+}
+
 export async function transfer(opts: {
   source: MintRef;
   dest: MintRef;
   amount?: number;
+  maxAmount?: number;
   kind?: 'swap' | 'consolidate';
 }): Promise<TransferResult> {
   const { source, dest, kind = 'swap' } = opts;
@@ -227,6 +242,15 @@ export async function transfer(opts: {
     const proofs = stored.map(toCashu);
     const balance = sum(proofs);
     if (opts.amount === undefined) target = balance - Math.max(2, Math.ceil(balance * 0.02));
+    const limits = await amountLimits(source.id, dest.id);
+    if (target > limits.max) target = limits.max;
+    if (target < limits.min) {
+      if (limits.min > (opts.maxAmount ?? target) || limits.min > balance) {
+        stage = 'limits';
+        return fail(`Amount ${target} sat is below the mint minimum of ${limits.min} sat`);
+      }
+      target = limits.min;
+    }
 
     quoteStarted = Date.now();
     for (let attempt = 0; attempt < 4; attempt++) {

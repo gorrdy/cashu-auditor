@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         results.push({ ...row, skipped: 'source backed off' });
         continue;
       }
-      if (!backoff.canReceive(dest.id)) {
+      if (!backoff.canReceive(dest.id) || !backoff.canPair(source.id, dest.id)) {
         results.push({ ...row, skipped: 'destination backed off' });
         continue;
       }
