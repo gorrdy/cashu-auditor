@@ -25,6 +25,10 @@ export async function addMint(_prev: FormResult, formData: FormData): Promise<Fo
 
   const probe = await probeMint(url);
   if (!probe.info) return { error: `No Cashu mint answered at ${url} (${probe.error ?? 'unknown error'}).` };
+  if (probe.info.pubkey) {
+    const alias = await prisma.mint.findFirst({ where: { pubkey: probe.info.pubkey }, select: { url: true } });
+    if (alias) return { ok: `This mint is already tracked as ${alias.url}.` };
+  }
 
   await prisma.mint.create({
     data: {

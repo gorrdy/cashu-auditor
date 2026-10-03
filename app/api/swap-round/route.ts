@@ -3,7 +3,7 @@ import { authorized } from '@/lib/auth';
 import { withWalletLock } from '@/lib/lock';
 import { homeMintUrl } from '@/lib/consolidate';
 import { recoverPendingSwaps, transfer } from '@/lib/transfer';
-import { swappableMints, unspentBalance } from '@/lib/eligible';
+import { swappableMints, trustState, unspentBalance } from '@/lib/eligible';
 import { loadBackoff } from '@/lib/backoff';
 
 const FEE_BUFFER = 15;
@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const result = await withWalletLock('swap-round', async () => {
     const recovered = await recoverPendingSwaps();
     const backoff = await loadBackoff();
+    const trust = await trustState();
     const ring = await swappableMints();
     for (let i = ring.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -40,11 +41,16 @@ export async function GET(request: Request) {
         results.push({ ...row, skipped: 'source balance too low' });
         continue;
       }
-      if (dest.url !== home && (await unspentBalance(dest.id)) + amount > MAX_EXPOSURE) {
+      const sendAmount = trust.proven(dest.id) ? amount : Math.min(amount, 5);
+      if (dest.url !== home && !trust.mature(dest.id)) {
+        results.push({ ...row, skipped: 'destination tracked for less than 3 days' });
+        continue;
+      }
+      if (dest.url !== home && ((await unspentBalance(dest.id)) + sendAmount > MAX_EXPOSURE || !trust.canHoldMore(dest.id, sendAmount))) {
         results.push({ ...row, skipped: 'destination exposure limit' });
         continue;
       }
-      const r = await transfer({ source, dest, amount });
+      const r = await transfer({ source, dest, amount: sendAmount });
       results.push({ ...row, status: r.status, amount: r.amount, fee: r.fee, ms: r.duration, stage: r.stage, error: r.error });
     }
     return { mints: ring.length, amount, recovered: recovered.length, results };

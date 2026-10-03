@@ -6,6 +6,7 @@ import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
+import { trustState } from '@/lib/eligible';
 
 const MIN_SWAP = 10;
 const MAX_BALANCE_FRACTION = 0.1;
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
 
     const home = homeMintUrl();
     const backoff = await loadBackoff(now);
+    const trust = await trustState(now);
     const sources = online.filter(m => (balanceOf.get(m.id) ?? 0) >= MIN_SWAP + FEE_BUFFER && backoff.canSend(m.id));
     if (sources.length === 0) return { recovered, error: `No online mint holds ${MIN_SWAP + FEE_BUFFER} sat` };
     const foreign = sources.filter(m => m.url !== home);
@@ -77,7 +79,7 @@ export async function GET(request: Request) {
         return (
           m.id !== source.id &&
           backoff.canReceive(m.id) &&
-          (m.url === home || (balanceOf.get(m.id) ?? 0) + amount <= MAX_EXPOSURE) &&
+          (m.url === home || ((balanceOf.get(m.id) ?? 0) + amount <= MAX_EXPOSURE && trust.canHoldMore(m.id, amount))) &&
           now - m.addedAt.getTime() >= DEST_MIN_AGE_MS &&
           !!u && u.total >= DEST_MIN_CHECKS && u.up / u.total >= DEST_MIN_UPTIME
         );

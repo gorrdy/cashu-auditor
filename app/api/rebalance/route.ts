@@ -4,7 +4,7 @@ import { authorized } from '@/lib/auth';
 import { withWalletLock } from '@/lib/lock';
 import { homeMintUrl } from '@/lib/consolidate';
 import { transfer } from '@/lib/transfer';
-import { swappableMints, unspentBalance } from '@/lib/eligible';
+import { swappableMints, trustState, unspentBalance } from '@/lib/eligible';
 import { recentlyFailing } from '@/lib/blame';
 import { SLOW_BELOW, totalBalance } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
@@ -32,6 +32,7 @@ export async function GET(request: Request) {
       now
     );
     const backoff = await loadBackoff(now);
+    const trust = await trustState(now);
     const foreign = (await swappableMints()).filter(m => m.url !== homeUrl && !failing.has(m.id));
     const balances = new Map(await Promise.all(foreign.map(async m => [m.id, await unspentBalance(m.id)] as const)));
     const moves = [];
@@ -59,8 +60,9 @@ export async function GET(request: Request) {
       })).map(r => r.destMintId)
     );
     if ((await totalBalance()) >= SLOW_BELOW) {
-      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id) && backoff.canReceive(m.id))) {
+      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id) && backoff.canReceive(m.id) && trust.mature(m.id) && trust.proven(m.id))) {
         const need = TARGET - (balances.get(m.id) ?? 0);
+        if (!trust.canHoldMore(m.id, need)) continue;
         if (homeBalance - need < HOME_RESERVE) break;
         const r = await transfer({ source: home, dest: m, amount: need });
         moves.push({ from: home.url, to: m.url, amount: r.amount, status: r.status, fee: r.fee, error: r.error });

@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     let added = 0, rejected = 0;
     for (const { url, probe } of probes) {
       if (!probe.info) { rejected++; continue; }
+      if (probe.info.pubkey && (await prisma.mint.findFirst({ where: { pubkey: probe.info.pubkey }, select: { id: true } }))) continue;
       if (added >= MAX_NEW_PER_RUN || known.size >= MAX_MINTS) break;
       const mint = await prisma.mint.create({
         data: { url, source: 'nostr', name: probe.info.name?.slice(0, 120), version: probe.info.version?.slice(0, 60), pubkey: probe.info.pubkey },
