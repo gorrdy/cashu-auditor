@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { DAY, getMintDetail, getRecentSwaps, parseRange, RANGES, type RangeKey } from '@/lib/stats';
 import { prisma } from '@/lib/prisma';
 import { isMintId } from '@/lib/mintUrl';
@@ -29,6 +29,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function MintPage({ params, searchParams }: Props) {
   const { id } = await params;
   if (!isMintId(id)) notFound();
+  const alias = await prisma.mint.findUnique({ where: { id }, select: { aliasOfId: true } });
+  if (alias?.aliasOfId) permanentRedirect(`/mint/${alias.aliasOfId}`);
   const range: RangeKey = parseRange((await searchParams).range);
   const [d, swaps, x] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range)]);
   if (!d) notFound();
@@ -65,6 +67,11 @@ export default async function MintPage({ params, searchParams }: Props) {
             <p className="eyebrow">Mint</p>
             <h1 className="h1" style={{ overflowWrap: 'anywhere' }}>{label}</h1>
             <p className="mono soft" style={{ margin: '6px 0 0', overflowWrap: 'anywhere' }}>{mint.url}</p>
+            {x.aliases.length > 0 && (
+              <p className="small soft" style={{ margin: '4px 0 0', overflowWrap: 'anywhere' }}>
+                Also reachable as {x.aliases.map((a, i) => <span key={a.id}>{i ? ', ' : ''}<span className="mono">{hostOf(a.url)}</span>{a.name && a.name !== mint.name ? ` (${a.name})` : ''}</span>)} · <a href="#addresses">same mint</a>
+              </p>
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -233,6 +240,38 @@ export default async function MintPage({ params, searchParams }: Props) {
 
         <EventsCard events={x.events} />
       </section>
+
+      {x.aliases.length > 0 && (
+        <section className="section card" id="addresses">
+          <h2 className="h2">Addresses</h2>
+          <p className="small soft" style={{ margin: '0 0 12px' }}>
+            These URLs lead to the same mint: a quote created at one is visible at the other. Each address is checked separately; balance, swaps and score are shared.
+          </p>
+          <div className="table-wrap">
+            <table className="data">
+              <thead><tr><th>Address</th><th className="c-sm">Name</th><th>State</th><th className="r">Uptime 24 h</th><th className="r c-sm">Latency</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td className="mono cell-wrap">{hostOf(mint.url)} <span className="chip">primary</span></td>
+                  <td className="c-sm">{mint.name ?? '—'}</td>
+                  <td><StateBadge kind={d.lastAudit?.status === 'offline' ? 'error' : d.lastAudit?.status === 'degraded' ? 'degraded' : d.lastAudit ? 'ok' : 'unknown'} /></td>
+                  <td className="r">{fmtPct(d.uptime['24h'], 2)}</td>
+                  <td className="r c-sm">{fmtMs(d.lastAudit && d.lastAudit.status !== 'offline' ? d.lastAudit.latency : null)}</td>
+                </tr>
+                {x.aliases.map(a => (
+                  <tr key={a.id}>
+                    <td className="mono cell-wrap">{hostOf(a.url)}</td>
+                    <td className="c-sm">{a.name ?? '—'}</td>
+                    <td><StateBadge kind={a.status === 'offline' ? 'error' : a.status === 'degraded' ? 'degraded' : a.status ? 'ok' : 'unknown'} title={a.error ?? undefined} /></td>
+                    <td className="r">{fmtPct(a.uptime24h, 2)}</td>
+                    <td className="r c-sm">{fmtMs(a.latency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="section two-col">
         <IntegrityCard

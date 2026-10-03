@@ -15,6 +15,7 @@ export async function mintList() {
     mints: mints.map(m => ({
       id: m.id,
       url: m.url,
+      aliases: m.aliases.map(a => a.url),
       name: m.name,
       state: m.state,
       reasons: m.reasons,

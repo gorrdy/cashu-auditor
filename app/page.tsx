@@ -82,7 +82,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const terms = (params.q ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
   const matches = (m: (typeof mints)[number]) => {
     if (!terms.length) return true;
-    const hay = [m.name, m.url, m.version, mintLabel(m)].filter(Boolean).join(' ').toLowerCase();
+    const hay = [m.name, m.url, m.version, mintLabel(m), ...m.aliases.flatMap(a => [a.url, a.name])].filter(Boolean).join(' ').toLowerCase();
     return terms.every(t => hay.includes(t));
   };
   const allActive = mints.filter(m => !m.longOffline);
@@ -204,6 +204,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       <div style={{ minWidth: 0 }}>
                         <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                        {m.aliases.length > 0 && <div className="url" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</div>}
                       </div>
                     </div>
                   </td>
@@ -246,6 +247,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                           <div style={{ minWidth: 0 }}>
                             <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                             {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                            {m.aliases.length > 0 && <div className="url" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</div>}
                           </div>
                         </div>
                       </td>

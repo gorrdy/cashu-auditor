@@ -91,7 +91,7 @@ async function onlineHistory() {
 
 export async function getOverview(now = Date.now()) {
   const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews, history] = await Promise.all([
-    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true } }),
+    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true } }),
     prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
       SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
       JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
@@ -234,16 +234,26 @@ export async function getOverview(now = Date.now()) {
     if (bucket) bucket[s.status as 'success' | 'failed' | 'pending']++;
   }
 
+  const aliasRows = rows.filter(r => r.aliasOfId);
+  const primaries = rows
+    .filter(r => !r.aliasOfId)
+    .map(r => ({
+      ...r,
+      aliases: aliasRows
+        .filter(a => a.aliasOfId === r.id)
+        .map(a => ({ id: a.id, url: a.url, name: a.name, latestStatus: a.latestStatus, latency: a.latestLatency, uptime24h: a.uptime24h })),
+    }));
+
   return {
     now,
-    mints: rows,
+    mints: primaries,
     totals: {
-      balance: rows.reduce((s, r) => s + r.balance, 0),
-      reserved: rows.reduce((s, r) => s + r.reserved, 0),
-      donated: rows.reduce((s, r) => s + r.donated, 0),
-      online: rows.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
-      audited: rows.filter(r => r.latestStatus).length,
-      tracked: rows.length,
+      balance: primaries.reduce((s, r) => s + r.balance, 0),
+      reserved: primaries.reduce((s, r) => s + r.reserved, 0),
+      donated: primaries.reduce((s, r) => s + r.donated, 0),
+      online: primaries.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
+      audited: primaries.filter(r => r.latestStatus).length,
+      tracked: primaries.length,
       swaps: allSwaps.length,
       swaps24h: allSwaps.filter(s => now - s.timestamp.getTime() < DAY).length,
       pending: allSwaps.length - done.length,

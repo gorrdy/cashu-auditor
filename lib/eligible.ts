@@ -12,6 +12,7 @@ export async function latestStatuses() {
 export async function swappableMints() {
   const status = await latestStatuses();
   const mints = await prisma.mint.findMany({
+    where: { aliasOfId: null },
     select: { id: true, url: true, pubkey: true, addedAt: true, methods: true, mintDisabled: true, meltDisabled: true, authRequired: true },
     orderBy: { url: 'asc' },
   });

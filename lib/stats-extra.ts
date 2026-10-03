@@ -42,6 +42,18 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     prisma.proof.aggregate({ where: { mintId: id, state: 'spent_external' }, _sum: { amount: true }, _count: true }),
     loadBackoff(now),
   ]);
+  const aliasMints = await prisma.mint.findMany({ where: { aliasOfId: id }, select: { id: true, url: true, name: true } });
+  const aliases = await Promise.all(
+    aliasMints.map(async a => {
+      const [last, day] = await Promise.all([
+        prisma.auditLog.findFirst({ where: { mintId: a.id, location: 'prague' }, orderBy: { timestamp: 'desc' }, select: { status: true, latency: true, error: true, timestamp: true } }),
+        prisma.auditLog.groupBy({ by: ['status'], where: { mintId: a.id, location: 'prague', timestamp: { gte: new Date(now - 86_400_000) } }, _count: { _all: true } }),
+      ]);
+      const total = day.reduce((s, x) => s + x._count._all, 0);
+      const up = day.filter(x => x.status !== 'offline').reduce((s, x) => s + x._count._all, 0);
+      return { ...a, status: last?.status ?? null, latency: last && last.status !== 'offline' ? last.latency : null, error: last?.error ?? null, uptime24h: total ? (up / total) * 100 : null };
+    })
+  );
 
   const bucketCount = Math.ceil(rangeMs / bucketMs) + 1;
   const firstBucket = Math.floor(since / bucketMs);
@@ -77,6 +89,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
 
   return {
     backoff: backoff.map.get(id) ?? null,
+    aliases,
     timings: { prague: phases(prague), frankfurt: phases(frankfurt.filter(a => a.status !== 'offline')) },
     clockSkewMs: median(prague.map(r => r.clockSkewMs)),
     frankfurtLatency: buckets.map(v => median(v)),

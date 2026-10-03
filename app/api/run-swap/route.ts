@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 
     const now = Date.now();
     const [status, uptime] = await Promise.all([latestStatuses(), uptime24h(now)]);
-    const mints = await prisma.mint.findMany({ select: { id: true, url: true, addedAt: true } });
+    const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true } });
     const online = mints.filter(m => status.get(m.id) === 'online');
 
     const balances = await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'unspent' }, _sum: { amount: true } });
