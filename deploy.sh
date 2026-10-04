@@ -29,4 +29,6 @@ for _ in $(seq 1 60); do
   sleep 3
 done
 sudo systemctl restart cashu-auditor
+for _ in $(seq 1 30); do curl -sf -o /dev/null "${STATUS%/api/status}/methodology" && break; sleep 1; done
+BASE_URL="${STATUS%/api/status}" "$NODE_BIN/node" "$SRC/scripts/smoke.mjs" || echo "SMOKE TESTS FAILED"
 systemctl --no-pager --lines=0 status cashu-auditor

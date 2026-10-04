@@ -65,7 +65,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
       ) : (
         <section className="section">
           <div className="table-wrap">
-            <table className="data">
+            <table className="data compare-table">
               <thead>
                 <tr>
                   <th />

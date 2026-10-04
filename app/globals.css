@@ -354,3 +354,8 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 }
 @media (max-width: 767px) { table.data tr.c-md { display: none; } }
 @media (max-width: 1023px) { table.data tr.c-lg { display: none; } }
+@media (max-width: 599px) {
+  .compare-table { table-layout: fixed; }
+  table.data.compare-table td, table.data.compare-table th { overflow-wrap: anywhere; white-space: normal; }
+  .compare-table .badge { white-space: normal; }
+}
