@@ -26,7 +26,7 @@ export -f probe
 
 curl -sf --max-time 20 -H "Authorization: Bearer $PROBE_SECRET" "$API/api/probe/targets" \
   | jq -r '.mints[] | .id + " " + .url' \
-  | xargs -r -P 8 -n 2 bash -c 'probe "$@"' _
+  | xargs -r -P 1 -n 2 bash -c 'probe "$@"' _
 
 shopt -s nullglob
 files=("$T"/*.json)
