@@ -378,3 +378,32 @@ export async function recoverPendingSwaps() {
   }
   return results;
 }
+
+export async function reconcileAbandonedSwaps() {
+  const abandoned = await prisma.swap.findMany({
+    where: { status: 'failed', id: { in: (await prisma.proof.findMany({ where: { state: 'reserved' }, select: { swapId: true }, distinct: ['swapId'] })).map(p => p.swapId!).filter(Boolean) } },
+    include: { sourceMint: { select: { url: true } }, destMint: { select: { url: true } } },
+  });
+  const results = [];
+  for (const { sourceMint, destMint, ...row } of abandoned) {
+    let swap: Swap = row;
+    try {
+      const resolved = await resolveMelt(await walletFor(sourceMint.url), swap);
+      swap = resolved.swap;
+      if (resolved.outcome === 'unpaid') {
+        results.push({ swapId: swap.id, outcome: 'released' });
+        continue;
+      }
+      if (resolved.outcome === 'pending') {
+        results.push({ swapId: swap.id, outcome: 'still pending' });
+        continue;
+      }
+      const minted = await completeMint(await walletFor(destMint.url), swap, destMint.url);
+      if (minted.status === 'success') await finish(swap, 'success');
+      results.push({ swapId: swap.id, outcome: minted.status === 'success' ? 'completed' : `paid, mint ${minted.status}` });
+    } catch (error) {
+      results.push({ swapId: swap.id, outcome: `error: ${errorMessage(error)}` });
+    }
+  }
+  return results;
+}
