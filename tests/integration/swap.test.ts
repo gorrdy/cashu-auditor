@@ -50,6 +50,15 @@ describe.skipIf(!mintUrl)('swap engine against a FakeWallet mint', () => {
     expect(await lib.prisma.proof.count({ where: { state: 'reserved' } })).toBe(0);
   });
 
+  it('splits overshooting proofs so nothing beyond the fee reserve is lost', async () => {
+    const before = await balance(A.id);
+    const r = await lib.transfer({ source: A, dest: B, amount: 23 });
+    expect(r.status).toBe('success');
+    const swap = await lib.prisma.swap.findUniqueOrThrow({ where: { id: r.swapId! } });
+    expect(r.fee).toBeLessThanOrEqual(swap.feeReserve ?? 0);
+    expect(await balance(A.id)).toBe(before - 23 - r.fee);
+  });
+
   it('fails without moving funds when the balance is too low', async () => {
     const before = await balance(B.id);
     const r = await lib.transfer({ source: B, dest: A, amount: 10_000 });

@@ -37,6 +37,7 @@ export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * D
       case 'mint_quote':
         return s.destMintId;
       case 'melt_quote':
+      case 'split':
         return s.sourceMintId;
       case 'melt': {
         if (!ROUTE_ERROR.test(s.error ?? '')) return s.sourceMintId;

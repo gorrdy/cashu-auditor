@@ -280,6 +280,20 @@ export async function transfer(opts: {
       target -= Math.max(1, needed - balance + 1);
       send = [];
     }
+
+    const base = num(meltQuote!.amount) + num(meltQuote!.fee_reserve);
+    if (sum(send) > base + num(sourceWallet.getFeesForProofs(send))) {
+      stage = 'split';
+      const split = await withTimeout(sourceWallet.send(base, send, { includeFees: true }), 30_000);
+      await prisma.$transaction([
+        prisma.proof.deleteMany({ where: { secret: { in: send.map(p => p.secret) }, state: 'unspent' } }),
+        ...[...split.keep, ...split.send].map(p =>
+          prisma.proof.create({ data: { mintId: source.id, keysetId: p.id, amount: num(p.amount), secret: p.secret, C: p.C } })
+        ),
+      ]);
+      send = split.send;
+      stage = 'melt_quote';
+    }
   } catch (error) {
     return fail(errorMessage(error));
   }
