@@ -325,3 +325,22 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .filter-list a:hover { background: var(--surface-2); text-decoration: none; }
 .filter-list .check { width: 16px; font-weight: 700; color: var(--copper-ink); text-align: center; }
 .filter-list .filter-clear { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; color: var(--copper-ink); font-size: 13px; }
+
+.network-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.segmented button { font: inherit; padding: 5px 12px; font-size: 13px; line-height: 18px; color: var(--ink-2); background: transparent; border: 0; border-left: 1px solid var(--line-strong); cursor: pointer; }
+.segmented button:first-child { border-left: 0; }
+.segmented button:hover { color: var(--ink); background: var(--surface-2); }
+.segmented button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.network-min { display: inline-flex; align-items: center; gap: 6px; }
+.network-min .field { width: auto; padding: 4px 8px; font-size: 13px; }
+.network-search { flex: 1 1 180px; max-width: 240px; padding: 5px 12px; font-size: 13px; border-radius: 999px; }
+.network-stage { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.network-graph { cursor: grab; touch-action: none; user-select: none; }
+.network-graph:active { cursor: grabbing; }
+.network-graph .node:focus-visible circle[stroke] { stroke: var(--copper); }
+.network-zoom { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 6px; }
+.network-zoom .btn { height: 30px; min-width: 30px; padding: 0 8px; font-size: 14px; background: var(--surface); }
+.network-panel { position: absolute; left: 10px; bottom: 10px; width: min(280px, calc(100% - 20px)); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 12px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.12); }
+.network-close { background: none; border: 0; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; padding: 0 2px; }
+.network-close:hover { color: var(--ink); }
+@media (max-width: 599px) { .network-search { max-width: none; flex-basis: 100%; } }

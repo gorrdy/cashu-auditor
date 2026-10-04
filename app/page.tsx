@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getOverview, getRecentSwaps, getSwapGraph, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
-import MintGraph, { GraphLegend, GraphTable } from '@/components/MintGraph';
+import { GraphLegend } from '@/components/MintGraph';
+import MintNetwork from '@/components/MintNetworkLazy';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
 import SearchBox from '@/components/SearchBox';
@@ -76,7 +77,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
-  const [{ mints, totals, swapsPerDay, now }, recent, graphEdges] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph()]);
+  const [{ mints, totals, swapsPerDay, now }, recent, edges1, edges7, edges30] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph(1), getSwapGraph(7), getSwapGraph(30)]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
   const terms = (params.q ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
@@ -281,12 +282,11 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <div className="card-head">
           <div>
             <h2 className="h2">Swap network</h2>
-            <p className="small soft" style={{ margin: 0 }}>Which mints paid which, last 30 days · click a mint for details</p>
+            <p className="small soft" style={{ margin: 0 }}>Which mints paid which</p>
           </div>
           <GraphLegend />
         </div>
-        <MintGraph nodes={graphNodes} edges={graphEdges} />
-        {graphEdges.length > 0 && <GraphTable nodes={graphNodes} edges={graphEdges} />}
+        <MintNetwork nodes={graphNodes} edgesByRange={{ '24h': edges1, '7d': edges7, '30d': edges30 }} />
       </section>
 
       <section className="section">
