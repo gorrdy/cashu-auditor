@@ -189,10 +189,12 @@ export default async function MintPage({ params, searchParams }: Props) {
           <div>
             <h2 className="h2">Lightning swaps</h2>
             <p className="small soft" style={{ margin: 0 }}>Swaps where this mint paid out (melt) or received (mint), last {r.label}</p>
-            {x.backoff && (x.backoff.pending || x.backoff.until > now) && (
+            {x.backoff && (x.backoff.pending || x.backoff.banned || x.backoff.until > now) && (
               <p className="small" style={{ margin: '8px 0 0', display: 'flex', gap: 6, alignItems: 'center' }}>
-                <StateBadge kind="warn" label={x.backoff.pending ? 'Payouts paused' : 'Swaps paused'} />
-                {x.backoff.pending
+                <StateBadge kind="warn" label={x.backoff.banned ? 'Payouts stopped' : x.backoff.pending ? 'Payouts paused' : 'Swaps paused'} />
+                {x.backoff.banned
+                  ? 'This mint reported a payment as paid with an invalid preimage in the last 7 days; it is not used as a source.'
+                  : x.backoff.pending
                   ? 'A payout from this mint is still pending; it is not used as a source until it resolves.'
                   : `After ${x.backoff.failures} attributed failure${x.backoff.failures === 1 ? '' : 's'} in a row, next attempt after ${fmtDateTime(x.backoff.until)}.`}
               </p>

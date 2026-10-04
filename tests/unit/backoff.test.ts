@@ -48,3 +48,16 @@ describe('computePairBackoff', () => {
     expect(computePairBackoff(swaps, now).get('A>X')).toBeUndefined();
   });
 });
+
+describe('role-aware backoff', () => {
+  it('a successful receipt does not clear payout failures', () => {
+    const swaps = [s('L', 'X', 'failed', 'melt', 2, 'Melt state PENDING'), s('Y', 'L', 'success', null, 1)];
+    const b = computeBackoff(swaps, now).get('L')!;
+    expect(b.sendUntil).toBeGreaterThan(now);
+    expect(b.receiveUntil).toBe(0);
+  });
+  it('stops payouts from a mint that faked a preimage', () => {
+    const fake = { ...s('L', 'P', 'failed', 'melt', 1, 'fake'), preimageOk: false };
+    expect(computeBackoff([fake, s('L', 'Q', 'success', null, 0.5)], now).get('L')!.banned).toBe(true);
+  });
+});

@@ -28,8 +28,8 @@ export default function Methodology() {
         another mint, and mints fresh ecash there. It is the only way to prove that both mints actually move money.
       </p>
       <ul>
-        <li>Each swap is between 10 and 100 sat and at most 10 % of the audit balance. Sources are online mints with balance; the one that paid out least recently goes first, and the home mint is used as a source in about one run in ten.</li>
-        <li>A destination must be tracked for at least 3 days and answer at least 95 % of checks in the last 24 hours. Among those, the one swapped to least recently goes first. Until a mint has paid out a swap itself, it receives at most 5 sat, and the auditor never holds more than 600 sat with any operator other than its home mint.</li>
+        <li>Each swap is between 10 and 100 sat and at most 10 % of the audit balance. The auditor aims for every mint to pay out and receive at least 10 swaps a day. Each run picks the source with the fewest payouts in the last 24 hours and the destination with the fewest receipts, preferring pairs not tried in the last week. Once every mint has reached the target, runs are skipped until the window moves on.</li>
+        <li>A destination must be tracked for at least 3 days and answer at least 95 % of checks in the last 24 hours. Until a mint has paid out a swap itself, it receives at most 5 sat, and the auditor never holds more than 600 sat with any operator other than its home mint.</li>
         <li>Two URLs count as the same mint only when a quote created at one URL is visible at the other, which proves a shared database. A matching pubkey alone is not enough, because anyone can copy it. Confirmed aliases share the 600 sat limit.</li>
         <li>Proofs are locked before paying. If a payment times out, the auditor asks the mint for the quote state later and settles or releases the proofs. A swap is never paid twice.</li>
         <li>A failure is attributed only where the evidence points. A refused quote or failed minting counts against the destination, a refused melt quote or a payment stuck in pending against the source.</li>
