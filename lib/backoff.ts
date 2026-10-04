@@ -8,6 +8,27 @@ export type Backoff = { failures: number; until: number; pending: boolean; sendU
 
 const wait = (failures: number) => (failures ? Math.min(MAX_BACKOFF_MS, HOUR * 2 ** (failures - 1)) : 0);
 
+export function computePairBackoff(swaps: BlameSwap[], now = Date.now()) {
+  const blame = makeBlame(swaps, now);
+  const sorted = [...swaps].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  const pairs = new Map<string, { failures: number; last: number }>();
+  for (const s of sorted) {
+    const key = `${s.sourceMintId}>${s.destMintId}`;
+    if (s.status === 'success') {
+      pairs.delete(key);
+      continue;
+    }
+    if (s.status !== 'failed' || s.stage !== 'melt' || blame(s)) continue;
+    const p = pairs.get(key) ?? { failures: 0, last: 0 };
+    p.failures++;
+    p.last = s.timestamp.getTime();
+    pairs.set(key, p);
+  }
+  const until = new Map<string, number>();
+  for (const [key, p] of pairs) until.set(key, p.last + Math.min(MAX_BACKOFF_MS, HOUR * 2 ** (p.failures - 1)));
+  return until;
+}
+
 export function computeBackoff(swaps: BlameSwap[], now = Date.now()) {
   const blame = makeBlame(swaps, now);
   const sorted = [...swaps].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
