@@ -70,6 +70,13 @@ export async function loadBackoff(now = Date.now()) {
   });
   const map = computeBackoff(swaps, now);
   const pairs = computePairBackoff(swaps, now);
+  const stuck = new Set(
+    (await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'reserved' } })).map(r => r.mintId)
+  );
+  for (const id of stuck) {
+    const b = map.get(id);
+    map.set(id, b ? { ...b, pending: true } : { failures: 0, until: 0, pending: true });
+  }
   return {
     map,
     canPair: (source: string, dest: string) => (pairs.get(`${source}>${dest}`) ?? 0) <= now,
