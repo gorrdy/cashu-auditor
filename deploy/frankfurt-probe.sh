@@ -31,6 +31,10 @@ curl -sf --max-time 20 -H "Authorization: Bearer $PROBE_SECRET" "$API/api/probe/
 shopt -s nullglob
 files=("$T"/*.json)
 [ ${#files[@]} -gt 0 ] || exit 0
-jq -s '{results: .}' "${files[@]}" \
-  | curl -sf --max-time 30 -X POST -H "Authorization: Bearer $PROBE_SECRET" -H 'Content-Type: application/json' \
-      --data-binary @- "$API/api/probe/results?location=frankfurt" >/dev/null
+jq -s '{results: .}' "${files[@]}" > "$T/payload.json"
+for attempt in 1 2 3 4 5 6; do
+  curl -sf --max-time 30 -X POST -H "Authorization: Bearer $PROBE_SECRET" -H 'Content-Type: application/json' \
+    --data-binary @"$T/payload.json" "$API/api/probe/results?location=frankfurt" >/dev/null && exit 0
+  sleep 20
+done
+exit 1

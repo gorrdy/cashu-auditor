@@ -20,5 +20,13 @@ sudo -u cashu-audit env -i HOME=/srv/cashu-auditor PATH="$NODE_BIN:/usr/bin:/bin
   npx next build
   mkdir -p .next/cache
 "
+AUTH="$HOME/.config/cashu-audit/cron-auth"
+STATUS="http://$(sudo grep -oP '^BIND_HOST=\K.+' /etc/cashu-auditor/env):$(sudo grep -oP '^PORT=\K.+' /etc/cashu-auditor/env)/api/status"
+for _ in $(seq 1 60); do
+  holder=$(curl -s --max-time 5 -H @"$AUTH" "$STATUS" | sed -n 's/.*"wallet":\("[^"]*"\|null\).*/\1/p')
+  [ -z "$holder" ] || [ "$holder" = "null" ] && break
+  echo "waiting for wallet operation $holder to finish"
+  sleep 3
+done
 sudo systemctl restart cashu-auditor
 systemctl --no-pager --lines=0 status cashu-auditor

@@ -5,7 +5,7 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 function createClient() {
   const url = (process.env.DATABASE_URL ?? 'file:./prisma/dev.db').replace(/^file:/, '');
-  const adapter = new PrismaBetterSqlite3({ url }, { timestampFormat: 'unixepoch-ms' });
+  const adapter = new PrismaBetterSqlite3({ url, timeout: 15_000 }, { timestampFormat: 'unixepoch-ms' });
   return new PrismaClient({ adapter, log: ['warn', 'error'] });
 }
 

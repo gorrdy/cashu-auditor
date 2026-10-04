@@ -17,7 +17,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-sqlite3 "$DB" ".backup '$WORK/dev.db'"
+sqlite3 -cmd ".timeout 30000" "$DB" ".backup '$WORK/dev.db'"
 RESULT=$(sqlite3 "$WORK/dev.db" "PRAGMA integrity_check;")
 [[ $RESULT == "ok" ]] || { echo "ERROR: integrity_check failed: $RESULT" >&2; exit 1; }
 cp "$ENV_FILE" "$WORK/env"
