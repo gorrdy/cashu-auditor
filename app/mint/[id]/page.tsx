@@ -11,7 +11,7 @@ import StatusBars, { StatusTable } from '@/components/StatusBars';
 import LatencyChart from '@/components/LatencyChart';
 import SwapTable from '@/components/SwapTable';
 import CopyField from '@/components/CopyField';
-import { EventsCard, IntegrityCard, NetworkCard, ReviewsCard, SpecCard } from '@/components/MintSections';
+import { EventsCard, IntegrityCard, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import { fmtAgo, fmtDate, fmtDateTime, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
@@ -220,6 +220,10 @@ export default async function MintPage({ params, searchParams }: Props) {
           lastLabel={d.swapBucket === DAY ? 'Today' : 'Now'}
         />
         <StatusTable buckets={bars} head={d.swapBucket === DAY ? 'Day' : 'Hour'} />
+      </section>
+
+      <section className="section">
+        <PayoutsCard rows={x.payouts} rangeLabel={r.label} />
       </section>
 
       <section className="section two-col">

@@ -291,3 +291,36 @@ export function ReviewsCard({ reviews }: { reviews: { count: number; rated: numb
     </div>
   );
 }
+
+export function PayoutsCard({ rows, rangeLabel }: { rows: { id: string; label: string; paid: number; failed: number; pending: number; lastError: string | null }[]; rangeLabel: string }) {
+  const unreachable = rows.filter(r => r.paid === 0 && r.failed > 0).length;
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <h2 className="h2">Payouts by destination</h2>
+          <p className="small soft" style={{ margin: 0 }}>Where this mint could and could not pay over Lightning, last {rangeLabel}</p>
+        </div>
+        {rows.length > 0 && <span className="small soft">{rows.length} destinations · {unreachable} never reached</span>}
+      </div>
+      {rows.length === 0 ? <p className="small muted">No payouts in this range.</p> : (
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Destination</th><th className="r">Paid</th><th className="r">Failed</th><th className="r c-sm">Pending</th><th className="c-md">Last error</th></tr></thead>
+            <tbody>
+              {rows.slice(0, 25).map(r => (
+                <tr key={r.id}>
+                  <td className="cell-wrap"><a href={`/mint/${r.id}`}>{r.label}</a></td>
+                  <td className="r">{r.paid}</td>
+                  <td className="r">{r.failed || <span className="muted">0</span>}</td>
+                  <td className="r c-sm">{r.pending || <span className="muted">0</span>}</td>
+                  <td className="small soft cell-wrap c-md">{r.lastError ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

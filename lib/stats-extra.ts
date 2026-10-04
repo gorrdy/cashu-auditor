@@ -42,6 +42,27 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     prisma.proof.aggregate({ where: { mintId: id, state: 'spent_external' }, _sum: { amount: true }, _count: true }),
     loadBackoff(now),
   ]);
+  const payoutRows = await prisma.swap.findMany({
+    where: { sourceMintId: id, timestamp: { gte: new Date(since) }, OR: [{ stage: null }, { stage: { notIn: ['balance', 'limits', 'reserve'] } }] },
+    orderBy: { timestamp: 'desc' },
+    select: { destMintId: true, status: true, error: true, timestamp: true, destMint: { select: { name: true, url: true } } },
+  });
+  const payoutMap = new Map<string, { id: string; label: string; paid: number; failed: number; pending: number; lastError: string | null; lastAt: number }>();
+  for (const r of payoutRows) {
+    const e = payoutMap.get(r.destMintId) ?? {
+      id: r.destMintId,
+      label: r.destMint.name?.replace(/^"|"$/g, '') || r.destMint.url.replace(/^https:\/\//, ''),
+      paid: 0, failed: 0, pending: 0, lastError: null, lastAt: r.timestamp.getTime(),
+    };
+    if (r.status === 'success') e.paid++;
+    else if (r.status === 'pending') e.pending++;
+    else {
+      e.failed++;
+      e.lastError ??= r.error;
+    }
+    payoutMap.set(r.destMintId, e);
+  }
+  const payouts = [...payoutMap.values()].sort((a, b) => b.failed + b.pending - (a.failed + a.pending) || b.paid - a.paid);
   const aliasMints = await prisma.mint.findMany({ where: { aliasOfId: id }, select: { id: true, url: true, name: true } });
   const aliases = await Promise.all(
     aliasMints.map(async a => {
@@ -89,6 +110,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
 
   return {
     backoff: backoff.map.get(id) ?? null,
+    payouts,
     aliases,
     timings: { prague: phases(prague), frankfurt: phases(frankfurt.filter(a => a.status !== 'offline')) },
     clockSkewMs: median(prague.map(r => r.clockSkewMs)),
