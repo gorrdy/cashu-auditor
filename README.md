@@ -50,3 +50,7 @@ npm test
 
 `./deploy.sh` copies the working tree to `/srv/cashu-auditor/app`, builds it as the `cashu-audit` user and
 restarts the `cashu-auditor` systemd service.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
