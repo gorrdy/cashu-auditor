@@ -344,3 +344,12 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .network-close { background: none; border: 0; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; padding: 0 2px; }
 .network-close:hover { color: var(--ink); }
 @media (max-width: 599px) { .network-search { max-width: none; flex-basis: 100%; } }
+
+.compare-select { width: auto; max-width: 260px; }
+@media (max-width: 599px) {
+  .nav { gap: 12px; }
+  .nav-optional { display: none; }
+  .compare-select { max-width: none; width: 100%; }
+  table.data tr.c-sm { display: none; }
+}
+@media (max-width: 767px) { table.data tr.c-md { display: none; } }

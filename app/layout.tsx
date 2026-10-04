@@ -39,7 +39,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <nav className="nav" aria-label="Main" style={{ alignItems: 'center' }}>
               <LiveStatus />
               <Link href="/">Mints</Link>
-              <Link href="/#swaps">Swaps</Link>
+              <Link href="/#swaps" className="nav-optional">Swaps</Link>
+              <Link href="/compare">Compare</Link>
               <Link href="/methodology">Methodology</Link>
             </nav>
           </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authorized } from '@/lib/auth';
-import { pruneRaw, rollupHours } from '@/lib/maintenance';
+import { pruneRaw, rollupHours, snapshotScores } from '@/lib/maintenance';
 
 let running = false;
 
@@ -10,8 +10,9 @@ export async function GET(request: Request) {
   running = true;
   try {
     const rollup = await rollupHours();
+    const scores = await snapshotScores();
     const prune = new URL(request.url).searchParams.get('prune') === '1' ? await pruneRaw() : null;
-    return NextResponse.json({ success: true, rollup, prune });
+    return NextResponse.json({ success: true, rollup, scores, prune });
   } finally {
     running = false;
   }

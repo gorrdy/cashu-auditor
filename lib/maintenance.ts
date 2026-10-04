@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { dayKey, getOverview } from './stats';
 
 const HOUR = 3_600_000;
 export const RAW_RETENTION_DAYS = 35;
@@ -55,4 +56,15 @@ export async function pruneRaw(now = Date.now()) {
   const { count } = await prisma.auditLog.deleteMany({ where: { timestamp: { lt: cutoff } } });
   await prisma.$executeRawUnsafe('PRAGMA optimize');
   return { deleted: count };
+}
+
+export async function snapshotScores(now = Date.now()) {
+  const { mints } = await getOverview(now);
+  const day = dayKey(now);
+  for (const m of mints) {
+    const swaps = m.scoreParts.find(p => p.key === 'swaps')?.score ?? null;
+    const data = { score: m.score, uptime: m.uptime30d, latency: m.avgLatency24h, swapRate: swaps };
+    await prisma.scoreDaily.upsert({ where: { mintId_day: { mintId: m.id, day } }, update: data, create: { mintId: m.id, day, ...data } });
+  }
+  return { mints: mints.length, day };
 }

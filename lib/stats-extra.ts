@@ -2,6 +2,7 @@ import { nip19 } from 'nostr-tools';
 import { prisma } from './prisma';
 import { RANGES, type RangeKey } from './stats';
 import { loadBackoff } from './backoff';
+import { lastDays } from './stats';
 
 const median = (values: (number | null | undefined)[]) => {
   const v = values.filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
@@ -109,6 +110,12 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
   const fraUp = frankfurt.filter(a => a.status !== 'offline').length;
 
   return {
+    scoreHistory: await (async () => {
+      const days = lastDays(90, now);
+      const rows = new Map((await prisma.scoreDaily.findMany({ where: { mintId: id, day: { gte: days[0] } } })).map(r => [r.day, r.score]));
+      const first = days.findIndex(d => rows.has(d));
+      return first < 0 ? [] : days.slice(first).map(day => ({ day, score: rows.get(day) ?? null }));
+    })(),
     backoff: backoff.map.get(id) ?? null,
     payouts,
     aliases,

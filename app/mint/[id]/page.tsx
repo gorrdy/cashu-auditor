@@ -14,6 +14,7 @@ import CopyField from '@/components/CopyField';
 import { EventsCard, IntegrityCard, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
+import ScoreTrend from '@/components/ScoreTrend';
 import { fmtAgo, fmtDate, fmtDateTime, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
 
 export const revalidate = 60;
@@ -331,7 +332,8 @@ export default async function MintPage({ params, searchParams }: Props) {
 
       <section className="section card" id="score">
         <h2 className="h2">Audit score</h2>
-        <p className="small soft" style={{ margin: '0 0 12px' }}>Weighted from measurements; parts without enough data are left out and the weights rescaled. <Link href="/methodology#score" prefetch={false}>How it is computed</Link></p>
+        <p className="small soft" style={{ margin: '0 0 12px' }}>Weighted from measurements; parts without enough data are left out and the weights rescaled. <Link href="/methodology#score" prefetch={false}>How it is computed</Link> · <Link href={`/compare?m=${mint.id}`} prefetch={false}>Compare with other mints</Link></p>
+        <div style={{ marginBottom: 16 }}><ScoreTrend points={x.scoreHistory} /></div>
         <div className="table-wrap">
           <table className="data">
             <thead><tr><th>Part</th><th className="r">Weight</th><th className="r">Points</th><th className="c-sm">Based on</th></tr></thead>
