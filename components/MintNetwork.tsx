@@ -28,8 +28,37 @@ function edgeClass(e: GraphEdge) {
   return rate >= 0.9 ? 'good' : rate >= 0.5 ? 'warning' : 'critical';
 }
 
-export default function MintNetwork({ nodes, edgesByRange }: { nodes: Node[]; edgesByRange: Record<Range, GraphEdge[]> }) {
+export default function MintNetwork({ nodes }: { nodes: Node[] }) {
   const [range, setRange] = useState<Range>('30d');
+  const [edgesByRange, setEdgesByRange] = useState<Partial<Record<Range, GraphEdge[]>>>({});
+  const [visible, setVisible] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) {
+        setVisible(true);
+        io.disconnect();
+      }
+    }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || edgesByRange[range]) return;
+    let cancelled = false;
+    fetch(`/api/v1/network?range=${range}`)
+      .then(r => r.json())
+      .then((d: { edges?: GraphEdge[] }) => {
+        if (!cancelled) setEdgesByRange(m => ({ ...m, [range]: d.edges ?? [] }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [visible, range, edgesByRange]);
+  const loading = !edgesByRange[range];
   const [kind, setKind] = useState<Kind>('all');
   const [minSwaps, setMinSwaps] = useState(1);
   const [query, setQuery] = useState('');
@@ -43,7 +72,7 @@ export default function MintNetwork({ nodes, edgesByRange }: { nodes: Node[]; ed
 
   const edges = useMemo(
     () =>
-      edgesByRange[range].filter(e => {
+      (edgesByRange[range] ?? []).filter(e => {
         const total = e.paid + e.failed + e.pending;
         if (total < minSwaps) return false;
         if (kind === 'paid') return e.paid > 0;
@@ -178,7 +207,7 @@ export default function MintNetwork({ nodes, edgesByRange }: { nodes: Node[]; ed
   const dimmed = (id: string) => (neighbours ? !neighbours.has(id) : matches.size > 0 && !matches.has(id));
 
   return (
-    <div className="network">
+    <div className="network" ref={rootRef} style={{ opacity: loading ? 0.6 : 1 }}>
       <div className="network-bar" role="toolbar" aria-label="Network filters">
         <div className="segmented" role="group" aria-label="Period">
           {RANGES.map(r => (
@@ -305,7 +334,7 @@ export default function MintNetwork({ nodes, edgesByRange }: { nodes: Node[]; ed
             );
           })}
           {shown.length === 0 && (
-            <text x={W / 2} y={H / 2} textAnchor="middle" className="node-label">No swaps match these filters.</text>
+            <text x={W / 2} y={H / 2} textAnchor="middle" className="node-label">{loading ? 'Loading network…' : 'No swaps match these filters.'}</text>
           )}
         </svg>
 

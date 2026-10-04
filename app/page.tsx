@@ -1,16 +1,17 @@
 import Link from 'next/link';
-import { getOverview, getRecentSwaps, getSwapGraph, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
+import { getOverview, getRecentSwaps, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
 import { GraphLegend } from '@/components/MintGraph';
 import MintNetwork from '@/components/MintNetworkLazy';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
 import SearchBox from '@/components/SearchBox';
+import HourStrip from '@/components/HourStrip';
 import { Suspense } from 'react';
-import UptimeStrip, { UptimeLegend } from '@/components/UptimeStrip';
+import { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
 import { AddMintForm, DonateForm } from '@/components/Forms';
-import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
+import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
 
@@ -77,7 +78,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
-  const [{ mints, totals, swapsPerDay, now }, recent, edges1, edges7, edges30] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 }), getSwapGraph(1), getSwapGraph(7), getSwapGraph(30)]);
+  const [{ mints, totals, swapsPerDay, now }, recent] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 })]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
   const terms = (params.q ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
@@ -214,11 +215,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     {m.score == null ? <span className="muted">—</span> : <strong className="num">{m.score}</strong>}
                   </td>
                   <td className="c-lg">
-                    <UptimeStrip
-                      variant="compact"
-                      ariaLabel={`Hourly availability of ${mintLabel(m)} in the last 24 hours`}
-                      cells={m.strip.map((u, i) => ({ uptime: u, label: `${fmtHour((currentHour - 23 + i) * HOUR_MS)}–${fmtHour((currentHour - 22 + i) * HOUR_MS)}` }))}
-                    />
+                    <HourStrip values={m.strip.map(v => (v == null ? null : Math.round(v * 100) / 100))} firstHour={currentHour - 23} label={`Hourly availability of ${mintLabel(m)} in the last 24 hours`} />
                   </td>
                   <td className="r nowrap" title={`24 h ${fmtPct(m.uptime24h)} · 7 d ${fmtPct(m.uptime7d)}`}>{fmtPct(m.uptime30d)}</td>
                   <td className="r nowrap">{fmtMs(m.avgLatency24h)}</td>
@@ -287,7 +284,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           </div>
           <GraphLegend />
         </div>
-        <MintNetwork nodes={graphNodes} edgesByRange={{ '24h': edges1, '7d': edges7, '30d': edges30 }} />
+        <MintNetwork nodes={graphNodes} />
       </section>
 
       <section className="section">
