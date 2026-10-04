@@ -353,3 +353,4 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
   table.data tr.c-sm { display: none; }
 }
 @media (max-width: 767px) { table.data tr.c-md { display: none; } }
+@media (max-width: 1023px) { table.data tr.c-lg { display: none; } }

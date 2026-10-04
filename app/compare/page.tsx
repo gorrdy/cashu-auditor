@@ -84,7 +84,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
                     {details.map(c => <td key={c.m.id} className="cell-wrap">{r.cell(c)}</td>)}
                   </tr>
                 ))}
-                <tr className="c-md">
+                <tr className="c-lg">
                   <td className="soft nowrap">Last 30 days</td>
                   {details.map(c => (
                     <td key={c.m.id} style={{ minWidth: 160 }}>
