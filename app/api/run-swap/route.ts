@@ -15,7 +15,8 @@ const MAX_DEST_ATTEMPTS = 3;
 const MAX_SWAP = 100;
 const UNPROVEN_DEST_MAX = 5;
 const MAX_EXPOSURE = 600;
-const FOREIGN_SOURCE_SHARE = 0.5;
+const FOREIGN_SOURCE_SHARE = 0.9;
+const PICK_FROM_OLDEST = 3;
 const DEST_MIN_AGE_MS = 3 * 86_400_000;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
@@ -59,7 +60,11 @@ export async function GET(request: Request) {
     if (sources.length === 0) return { recovered, error: `No online mint holds ${MIN_SWAP + FEE_BUFFER} sat` };
     const foreign = sources.filter(m => m.url !== home);
     const pool = foreign.length > 0 && (Math.random() < FOREIGN_SOURCE_SHARE || foreign.length === sources.length) ? foreign : sources.filter(m => m.url === home);
-    const source = pool[Math.floor(Math.random() * pool.length)];
+    const lastPaid = new Map(
+      (await prisma.swap.groupBy({ by: ['sourceMintId'], where: { kind: 'swap' }, _max: { timestamp: true } })).map(r => [r.sourceMintId, r._max.timestamp?.getTime() ?? 0])
+    );
+    const oldest = [...pool].sort((a, b) => (lastPaid.get(a.id) ?? 0) - (lastPaid.get(b.id) ?? 0)).slice(0, PICK_FROM_OLDEST);
+    const source = oldest[Math.floor(Math.random() * oldest.length)];
 
     const maxSwap = Math.max(MIN_SWAP, Math.min(MAX_SWAP, Math.floor(total * MAX_BALANCE_FRACTION), (balanceOf.get(source.id) ?? 0) - FEE_BUFFER));
     const amount = MIN_SWAP + Math.floor(Math.random() * (maxSwap - MIN_SWAP + 1));
