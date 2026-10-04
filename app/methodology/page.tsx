@@ -36,6 +36,7 @@ export default function Methodology() {
         <li>A Lightning routing failure can sit anywhere on the path, so by default it counts against neither mint. It is attributed to the destination only after payments to it failed from at least two different mints with no successful payment in 7 days, and to the source likewise for payments to two different destinations.</li>
         <li>After a failure attributed to a mint it is left out of swaps for 1 hour, doubling with every further failure in a row up to 24 hours. Any successful swap resets it. A mint with a payout still pending is not used as a source until it resolves.</li>
         <li>A routing failure between two specific mints pauses only that pair, for 1 hour doubling up to 24 hours, so other mints keep being tried.</li>
+        <li>Mints that describe themselves as test mints in their name, URL or description may issue unbacked ecash. They are checked for availability, never receive swaps, and any balance held there is paid out and not counted in the audit balance.</li>
         <li>Swap amounts respect the minimum and maximum each mint advertises for Lightning deposits and withdrawals.</li>
         <li>A mint is marked Warning for swaps only while its most recent attributed failure in the last 24 hours is newer than its last successful swap.</li>
         <li>Fees are what the source kept after returning change: amount sent minus amount minted minus change.</li>

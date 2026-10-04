@@ -91,7 +91,7 @@ async function onlineHistory() {
 
 export async function getOverview(now = Date.now()) {
   const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews, history] = await Promise.all([
-    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true } }),
+    prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true } }),
     prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
       SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
       JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
@@ -248,7 +248,7 @@ export async function getOverview(now = Date.now()) {
     now,
     mints: primaries,
     totals: {
-      balance: primaries.reduce((s, r) => s + r.balance, 0),
+      balance: primaries.filter(r => !r.isTest).reduce((s, r) => s + r.balance, 0),
       reserved: primaries.reduce((s, r) => s + r.reserved, 0),
       donated: primaries.reduce((s, r) => s + r.donated, 0),
       online: primaries.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,

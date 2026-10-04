@@ -5,7 +5,7 @@ export const STOP_BELOW = 1_000;
 export const SLOW_INTERVAL_MS = 60 * 60_000;
 
 export async function totalBalance() {
-  return (await prisma.proof.aggregate({ where: { state: 'unspent' }, _sum: { amount: true } }))._sum.amount ?? 0;
+  return (await prisma.proof.aggregate({ where: { state: 'unspent', mint: { isTest: false } }, _sum: { amount: true } }))._sum.amount ?? 0;
 }
 
 export async function budgetState(now = Date.now()) {

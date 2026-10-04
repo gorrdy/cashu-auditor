@@ -42,6 +42,10 @@ export async function GET(request: Request) {
         continue;
       }
       const sendAmount = trust.proven(dest.id) ? amount : Math.min(amount, 5);
+      if (dest.isTest) {
+        results.push({ ...row, skipped: 'test mint' });
+        continue;
+      }
       if (dest.url !== home && !trust.mature(dest.id)) {
         results.push({ ...row, skipped: 'destination tracked for less than 3 days' });
         continue;

@@ -30,6 +30,10 @@ export async function GET(request: Request) {
       const have = await balance(mint.id);
       const need = target - have;
       const row: Record<string, unknown> = { mint: mint.url, had: have };
+      if (mint.isTest) {
+        out.push({ ...row, skipped: 'test mint' });
+        continue;
+      }
       if (onlyNew) {
         if (trust!.canHoldMore(mint.id, probeIn)) {
           const r = await transfer({ source: home, dest: mint, amount: probeIn });

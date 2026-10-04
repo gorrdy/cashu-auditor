@@ -13,7 +13,7 @@ export async function swappableMints() {
   const status = await latestStatuses();
   const mints = await prisma.mint.findMany({
     where: { aliasOfId: null },
-    select: { id: true, url: true, pubkey: true, addedAt: true, methods: true, mintDisabled: true, meltDisabled: true, authRequired: true },
+    select: { id: true, url: true, pubkey: true, addedAt: true, isTest: true, methods: true, mintDisabled: true, meltDisabled: true, authRequired: true },
     orderBy: { url: 'asc' },
   });
   return mints
@@ -24,7 +24,7 @@ export async function swappableMints() {
         methods.some(x => x.op === 'mint' && x.method === 'bolt11' && x.unit === 'sat')
       );
     })
-    .map(({ id, url, pubkey, addedAt }) => ({ id, url, pubkey, addedAt }));
+    .map(({ id, url, pubkey, addedAt, isTest }) => ({ id, url, pubkey, addedAt, isTest }));
 }
 
 export const unspentBalance = async (mintId: string) =>

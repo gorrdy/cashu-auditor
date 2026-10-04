@@ -64,7 +64,7 @@ export default async function MintPage({ params, searchParams }: Props) {
         <div style={{ display: 'flex', gap: 16, minWidth: 0 }}>
           <MintIcon id={mint.id} hash={mint.iconHash} size={56} />
           <div style={{ minWidth: 0 }}>
-            <p className="eyebrow">Mint</p>
+            <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}</p>
             <h1 className="h1" style={{ overflowWrap: 'anywhere' }}>{label}</h1>
             <p className="mono soft" style={{ margin: '6px 0 0', overflowWrap: 'anywhere' }}>{mint.url}</p>
             {x.aliases.length > 0 && (
@@ -86,6 +86,12 @@ export default async function MintPage({ params, searchParams }: Props) {
       </section>
 
       {mint.description && <p className="soft" style={{ maxWidth: 720, marginTop: 16 }}>{mint.description}</p>}
+      {mint.isTest && (
+        <p className="small" style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <StateBadge kind="warn" label="Test mint" />
+          Describes itself as a test mint, so its ecash may be unbacked. It is checked like any other mint but never receives swaps.
+        </p>
+      )}
       {mint.motd && (
         <p className="small" style={{ marginTop: 12, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--surface)', display: 'flex', gap: 8, maxWidth: 720 }}>
           <span className="eyebrow" style={{ flex: 'none' }}>MOTD</span>

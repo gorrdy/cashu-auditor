@@ -4,6 +4,7 @@ import { authorized } from '@/lib/auth';
 import { hasInternet, mapLimit, probeMint, type ProbeResult } from '@/lib/probe';
 import { fetchIcon } from '@/lib/icons';
 import { lookupNetwork } from '@/lib/netinfo';
+import { looksLikeTestMint } from '@/lib/testMint';
 import { publish } from '@/lib/events';
 
 const ICON_MAX_AGE_MS = 86_400_000;
@@ -43,6 +44,7 @@ function snapshot(mint: MintRow, r: ProbeResult) {
     batchMax: spec.batchMax,
     maxArrayLength: spec.maxArrayLength,
     clockSkewMs: r.clockSkewMs ?? null,
+    isTest: looksLikeTestMint({ url: mint.url, name: typeof info.name === 'string' ? info.name : null, description: typeof info.description === 'string' ? info.description : null }),
     ...(r.keysets ? { inputFeePpk: r.keysets.inputFeePpk, activeKeysetId: r.keysets.activeId, keysetCount: r.keysets.count } : {}),
     ...(r.cert ? { tlsIssuer: r.cert.issuer, tlsExpiresAt: r.cert.validTo ? new Date(r.cert.validTo) : null } : {}),
   };

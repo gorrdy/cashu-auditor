@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       })).map(r => r.destMintId)
     );
     if ((await totalBalance()) >= SLOW_BELOW) {
-      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !unreachable.has(m.id) && backoff.canReceive(m.id) && backoff.canPair(home.id, m.id) && trust.mature(m.id) && trust.proven(m.id))) {
+      for (const m of foreign.filter(m => (balances.get(m.id) ?? 0) < LOW && !m.isTest && !unreachable.has(m.id) && backoff.canReceive(m.id) && backoff.canPair(home.id, m.id) && trust.mature(m.id) && trust.proven(m.id))) {
         const need = TARGET - (balances.get(m.id) ?? 0);
         if (!trust.canHoldMore(m.id, need)) continue;
         if (homeBalance - need < HOME_RESERVE) break;

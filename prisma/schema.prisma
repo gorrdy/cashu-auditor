@@ -47,6 +47,7 @@ model Mint {
   netCheckedAt  DateTime?
   offlineSince  DateTime?
   aliasOfId     String?
+  isTest        Boolean    @default(false)
   nuts          String?
   source        String     @default("manual")
   addedAt       DateTime   @default(now())

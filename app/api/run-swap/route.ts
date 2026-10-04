@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     const now = Date.now();
     const [status, uptime] = await Promise.all([latestStatuses(), uptime24h(now)]);
-    const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true } });
+    const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true, isTest: true } });
     const online = mints.filter(m => status.get(m.id) === 'online');
 
     const balances = await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'unspent' }, _sum: { amount: true } });
@@ -83,6 +83,7 @@ export async function GET(request: Request) {
         const u = uptime.get(m.id);
         return (
           m.id !== source.id &&
+          !m.isTest &&
           backoff.canReceive(m.id) &&
           backoff.canPair(source.id, m.id) &&
           (m.url === home || ((balanceOf.get(m.id) ?? 0) + amount <= MAX_EXPOSURE && trust.canHoldMore(m.id, amount))) &&

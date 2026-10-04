@@ -205,6 +205,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       <div style={{ minWidth: 0 }}>
                         <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                        {m.isTest && <div className="url" title="Test mint: may issue unbacked ecash. Checked, but not used as a swap destination.">test mint</div>}
                         {m.aliases.length > 0 && <div className="url" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</div>}
                       </div>
                     </div>
