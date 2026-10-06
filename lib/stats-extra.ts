@@ -2,6 +2,9 @@ import { nip19 } from 'nostr-tools';
 import { prisma } from './prisma';
 import { RANGES, type RangeKey } from './stats';
 import { loadBackoff } from './backoff';
+import { COUNTED_SWAP } from './counted';
+
+const FRANKFURT_SEQUENTIAL_FROM = Date.parse('2026-10-04T07:05:00Z');
 import { lastDays } from './stats';
 
 const median = (values: (number | null | undefined)[]) => {
@@ -29,7 +32,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
       select: { dnsMs: true, connectMs: true, tlsMs: true, ttfbMs: true, clockSkewMs: true },
     }),
     prisma.auditLog.findMany({
-      where: { mintId: id, location: 'frankfurt', timestamp: { gte: new Date(since) } },
+      where: { mintId: id, location: 'frankfurt', timestamp: { gte: new Date(Math.max(since, FRANKFURT_SEQUENTIAL_FROM)) } },
       orderBy: { timestamp: 'asc' },
       select: { timestamp: true, status: true, latency: true, dnsMs: true, connectMs: true, tlsMs: true, ttfbMs: true },
     }),
@@ -44,7 +47,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     loadBackoff(now),
   ]);
   const payoutRows = await prisma.swap.findMany({
-    where: { sourceMintId: id, timestamp: { gte: new Date(since) }, OR: [{ stage: null }, { stage: { notIn: ['balance', 'limits', 'reserve'] } }] },
+    where: { sourceMintId: id, timestamp: { gte: new Date(since) }, ...COUNTED_SWAP },
     orderBy: { timestamp: 'desc' },
     select: { destMintId: true, status: true, error: true, timestamp: true, destMint: { select: { name: true, url: true } } },
   });

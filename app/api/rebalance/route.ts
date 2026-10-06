@@ -8,6 +8,7 @@ import { swappableMints, trustState, unspentBalance } from '@/lib/eligible';
 import { recentlyFailing } from '@/lib/blame';
 import { SLOW_BELOW, totalBalance } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
+import { COUNTED_SWAP } from '@/lib/counted';
 
 const LOW = 250;
 const TARGET = 500;
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const now = Date.now();
     const failing = recentlyFailing(
       await prisma.swap.findMany({
-        where: { timestamp: { gte: new Date(now - 7 * 86_400_000) } },
+        where: { timestamp: { gte: new Date(now - 7 * 86_400_000) }, ...COUNTED_SWAP },
         select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
       }),
       now

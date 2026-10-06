@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
 import { makeBlame } from './blame';
 import { computeScore } from './score';
+import { COUNTED_SWAP } from './counted';
 
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
@@ -106,10 +107,11 @@ export async function getOverview(now = Date.now()) {
     prisma.proof.groupBy({ by: ['mintId', 'state'], _sum: { amount: true } }),
     prisma.donation.groupBy({ by: ['mintId'], _sum: { amount: true } }),
     prisma.swap.findMany({
-      where: { timestamp: { gte: new Date(now - 30 * DAY) } },
+      where: { timestamp: { gte: new Date(now - 30 * DAY) }, ...COUNTED_SWAP },
       select: { status: true, timestamp: true, amount: true },
     }),
     prisma.swap.findMany({
+      where: COUNTED_SWAP,
       select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     }),
@@ -269,7 +271,7 @@ export async function getOverview(now = Date.now()) {
 
 export async function getRecentSwaps(opts: { mintId?: string; take?: number } = {}) {
   return prisma.swap.findMany({
-    where: opts.mintId ? { OR: [{ sourceMintId: opts.mintId }, { destMintId: opts.mintId }] } : undefined,
+    where: opts.mintId ? { AND: [{ OR: [{ sourceMintId: opts.mintId }, { destMintId: opts.mintId }] }, COUNTED_SWAP] } : COUNTED_SWAP,
     orderBy: { timestamp: 'desc' },
     take: opts.take ?? 25,
     include: {
@@ -296,13 +298,13 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
       select: { timestamp: true, status: true, latency: true, keysetsMs: true, error: true, version: true },
     }),
     prisma.swap.findMany({
-      where: { OR: [{ sourceMintId: id }, { destMintId: id }] },
+      where: { AND: [{ OR: [{ sourceMintId: id }, { destMintId: id }] }, COUNTED_SWAP] },
       select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
     }),
     prisma.proof.groupBy({ by: ['state'], where: { mintId: id }, _sum: { amount: true } }),
     prisma.donation.aggregate({ where: { mintId: id }, _sum: { amount: true } }),
     prisma.swap.findMany({
-      where: { timestamp: { gte: new Date(now - 7 * DAY) } },
+      where: { timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP },
       select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
     }),
     prisma.auditHourly.findMany({
@@ -472,7 +474,7 @@ export type GraphEdge = { source: string; dest: string; paid: number; failed: nu
 export async function getSwapGraph(days = 30, now = Date.now()) {
   const rows = await prisma.swap.groupBy({
     by: ['sourceMintId', 'destMintId', 'status'],
-    where: { timestamp: { gte: new Date(now - days * DAY) }, kind: 'swap' },
+    where: { timestamp: { gte: new Date(now - days * DAY) }, kind: 'swap', ...COUNTED_SWAP },
     _count: { _all: true },
     _sum: { amount: true },
     _avg: { duration: true },
