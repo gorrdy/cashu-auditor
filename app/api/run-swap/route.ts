@@ -29,6 +29,11 @@ async function uptime24h(now: number) {
   return new Map(rows.map(r => [r.mintId, { total: Number(r.total), up: Number(r.up) }]));
 }
 
+function bolt11Min(methods: string | null, op: 'mint' | 'melt') {
+  const list = methods ? (JSON.parse(methods) as { op: string; method: string; unit: string; min?: number }[]) : [];
+  return list.find(m => m.op === op && m.method === 'bolt11' && m.unit === 'sat')?.min ?? 1;
+}
+
 async function latestStatuses() {
   const rows = await prisma.$queryRaw<{ mintId: string; status: string }[]>`
     SELECT a.mintId, a.status FROM AuditLog a
@@ -47,7 +52,7 @@ export async function GET(request: Request) {
 
     const now = Date.now();
     const [status, uptime] = await Promise.all([latestStatuses(), uptime24h(now)]);
-    const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true, isTest: true } });
+    const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true, isTest: true, methods: true } });
     const online = mints.filter(m => status.get(m.id) === 'online');
 
     const balances = await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'unspent' }, _sum: { amount: true } });
@@ -72,7 +77,7 @@ export async function GET(request: Request) {
     const proven = new Set(provenRows.map(r => r.sourceMintId));
 
     const sources = online
-      .filter(m => (balanceOf.get(m.id) ?? 0) >= MIN_SWAP + FEE_BUFFER && backoff.canSend(m.id))
+      .filter(m => (balanceOf.get(m.id) ?? 0) >= Math.max(MIN_SWAP, bolt11Min(m.methods, 'melt')) + FEE_BUFFER && backoff.canSend(m.id))
       .sort((a, b) => (outCount.get(a.id) ?? 0) - (outCount.get(b.id) ?? 0) || Math.random() - 0.5);
     if (sources.length === 0) return { recovered, error: `No online mint holds ${MIN_SWAP + FEE_BUFFER} sat` };
     const receivers = online.filter(m => {
@@ -93,6 +98,8 @@ export async function GET(request: Request) {
         .filter(m =>
           m.id !== candidate.id &&
           backoff.canPair(candidate.id, m.id) &&
+          Math.max(bolt11Min(candidate.methods, 'melt'), bolt11Min(m.methods, 'mint')) <=
+            Math.min(proven.has(m.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, (balanceOf.get(candidate.id) ?? 0) - FEE_BUFFER) &&
           (m.url === home || ((balanceOf.get(m.id) ?? 0) + a <= MAX_EXPOSURE && trust.canHoldMore(m.id, a)))
         )
         .sort((x, y) =>
