@@ -45,6 +45,9 @@ model Mint {
   asName        String?
   country       String?
   netCheckedAt  DateTime?
+  lnPubkey      String?
+  lnNode        String?
+  lnCheckedAt   DateTime?
   offlineSince  DateTime?
   aliasOfId     String?
   isTest        Boolean    @default(false)

@@ -11,7 +11,7 @@ import StatusBars, { StatusTable } from '@/components/StatusBars';
 import LatencyChart from '@/components/LatencyChart';
 import SwapTable from '@/components/SwapTable';
 import CopyField from '@/components/CopyField';
-import { EventsCard, IntegrityCard, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
+import { EventsCard, IntegrityCard, LightningCard, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import ScoreTrend from '@/components/ScoreTrend';
@@ -299,6 +299,10 @@ export default async function MintPage({ params, searchParams }: Props) {
           clockSkewMs={x.clockSkewMs ?? mint.clockSkewMs}
         />
         <NetworkCard mint={mint} tor={x.checks.tor} timings={x.timings} />
+      </section>
+
+      <section className="section">
+        <LightningCard ln={x.lightning.node} peers={x.lightning.peers} maxReceived={x.lightning.maxReceived} incoming={x.lightning.incoming} />
       </section>
 
       <section className="section two-col">

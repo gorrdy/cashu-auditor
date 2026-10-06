@@ -531,3 +531,5 @@ table.data tbody tr:hover td { background: var(--accent-wash); }
 .site-footer { border-top-color: transparent; }
 table.data { font-size: 13.5px; }
 table.data td, table.data th { padding-left: 8px; padding-right: 8px; }
+.node-verdict { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; font-weight: 600; font-size: 14px; line-height: 20px; }
+.node-verdict svg { margin-top: 3px; flex: none; }

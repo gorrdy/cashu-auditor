@@ -7,6 +7,7 @@ import { COUNTED_SWAP } from './counted';
 const FRANKFURT_SEQUENTIAL_FROM = Date.parse('2026-10-04T07:05:00Z');
 import { lastDays } from './stats';
 import { DAY } from './constants';
+import type { LnNode } from './lnnode';
 
 const median = (values: (number | null | undefined)[]) => {
   const v = values.filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
@@ -121,6 +122,19 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
       return first < 0 ? [] : days.slice(first).map(day => ({ day, score: rows.get(day) ?? null }));
     })(),
     backoff: backoff.map.get(id) ?? null,
+    lightning: await (async () => {
+      const self = await prisma.mint.findUnique({ where: { id }, select: { lnPubkey: true, lnNode: true } });
+      const [peers, received, incoming] = await Promise.all([
+        self?.lnPubkey
+          ? prisma.mint.findMany({ where: { lnPubkey: self.lnPubkey, id: { not: id }, aliasOfId: null }, select: { id: true, url: true, name: true } })
+          : Promise.resolve([]),
+        prisma.swap.aggregate({ where: { destMintId: id, status: 'success', timestamp: { gte: new Date(now - 30 * DAY) } }, _max: { amount: true } }),
+        prisma.swap.groupBy({ by: ['status'], where: { destMintId: id, kind: 'swap', status: { not: 'pending' }, timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP }, _count: { _all: true } }),
+      ]);
+      const paid = incoming.find(r => r.status === 'success')?._count._all ?? 0;
+      const attempts = incoming.reduce((n, r) => n + r._count._all, 0);
+      return { node: self?.lnNode ? (JSON.parse(self.lnNode) as LnNode) : null, peers, maxReceived: received._max.amount, incoming: { paid, attempts } };
+    })(),
     payouts,
     aliases,
     timings: { prague: phases(prague), frankfurt: phases(frankfurt.filter(a => a.status !== 'offline')) },

@@ -6,6 +6,8 @@ import { mapLimit } from '@/lib/probe';
 import { checkProofStates, swapTest, torCheck } from '@/lib/checks';
 import { publish } from '@/lib/events';
 import { reconcileAbandonedSwaps } from '@/lib/transfer';
+import { checkLnNode } from '@/lib/lnnode';
+import { latestStatuses } from '@/lib/eligible';
 
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -14,6 +16,12 @@ export async function GET(request: Request) {
 
   const tor = only && only !== 'tor' ? [] : await mapLimit(mints.filter(m => m.onionUrl), 3, async m => ({ mint: m.url, ...(await torCheck(m)) }));
   if (only === 'tor') return NextResponse.json({ success: true, tor });
+  if (only === 'ln' || !only) {
+    const status = await latestStatuses();
+    const online = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, methods: true } });
+    const ln = await mapLimit(online.filter(m => status.get(m.id) === 'online'), 4, async m => ({ mint: m.url, ...(await checkLnNode(m)) }));
+    if (only === 'ln') return NextResponse.json({ success: true, ln });
+  }
   if (only === 'abandoned') {
     const abandoned = await withWalletLock('reconcile', reconcileAbandonedSwaps);
     return abandoned ? NextResponse.json({ success: true, abandoned }) : NextResponse.json({ error: 'Wallet busy' }, { status: 409 });

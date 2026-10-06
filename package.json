@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@cashu/cashu-ts": "^4.11.0",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
     "@prisma/adapter-better-sqlite3": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@scure/bip39": "^2.4.0",

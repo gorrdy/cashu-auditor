@@ -3,9 +3,10 @@ import type { PaymentMethod } from '@/lib/probe';
 import StateBadge, { StateIcon } from './StateBadge';
 import { fmtDate, fmtDateTime, fmtMs, fmtSat } from './format';
 import { DAY } from '@/lib/constants';
+import type { GraphNode, LnNode } from '@/lib/lnnode';
+import Link from 'next/link';
 
 type Timing = { dns: number | null; connect: number | null; tls: number | null; ttfb: number | null; samples: number };
-
 
 export function fmtPpk(ppk: number | null) {
   if (ppk == null) return '—';
@@ -320,6 +321,72 @@ export function PayoutsCard({ rows, rangeLabel }: { rows: { id: string; label: s
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  );
+}
+
+const fmtCapacity = (sat: number | undefined) =>
+  sat == null ? '—' : sat >= 1_000_000 ? `${(sat / 100_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 })} BTC` : fmtSat(sat);
+
+function NodeName({ node }: { node: GraphNode }) {
+  return (
+    <a href={`https://mempool.space/lightning/node/${node.pubkey}`} target="_blank" rel="noopener noreferrer">
+      {node.alias || <span className="mono">{node.pubkey.slice(0, 16)}…</span>}
+    </a>
+  );
+}
+
+function reachability(ln: LnNode, received: boolean): { kind: 'ok' | 'warn' | 'error'; text: string } {
+  const { node, via } = ln;
+  const publicHop = via.find(v => v.public && (v.channels ?? 0) > 0);
+  if (node.public && (node.channels ?? 0) >= 3) return { kind: 'ok', text: `Public node with ${node.channels} channels` };
+  if (publicHop) return { kind: (publicHop.channels ?? 0) >= 3 ? 'ok' : 'warn', text: `Reached through ${publicHop.alias ?? 'a route hint'} (${publicHop.channels} channels)` };
+  if (node.public && (node.channels ?? 0) > 0) return { kind: 'warn', text: `Public node with only ${node.channels} channel${node.channels === 1 ? '' : 's'}` };
+  if (via.length) return { kind: 'warn', text: 'Route hints point to nodes that are not in the public graph' };
+  if (received) return { kind: 'warn', text: 'Not in the public graph and no route hints, yet it received payments: likely reachable only through direct peers' };
+  return { kind: 'error', text: 'Not reachable over public routes: the node is not in the public graph and its invoices carry no route hints' };
+}
+
+export function LightningCard({ ln, peers, maxReceived, incoming }: {
+  ln: LnNode | null;
+  peers: { id: string; url: string; name: string | null }[];
+  maxReceived: number | null;
+  incoming: { paid: number; attempts: number };
+}) {
+  return (
+    <div className="card">
+      <h2 className="h2">Lightning node</h2>
+      <p className="small soft" style={{ margin: '0 0 12px' }}>The node behind the mint, read from its invoices and the public Lightning graph (mempool.space, 1ML)</p>
+      {!ln ? (
+        <p className="small muted" style={{ margin: 0 }}>Not checked yet. The node is read once a day.</p>
+      ) : (
+        <>
+          {(() => {
+            const r = reachability(ln, !!maxReceived);
+            return <p className="node-verdict"><StateIcon kind={r.kind === 'error' ? 'failed' : r.kind} />{r.text}</p>;
+          })()}
+          <dl className="kv">
+            <Row label="Node">{ln.node.public ? <NodeName node={ln.node} /> : <span className="mono">{ln.node.pubkey.slice(0, 20)}…</span>} {!ln.node.public && <span className="muted small">not in the public graph</span>}</Row>
+            {ln.node.public && <Row label="Capacity">{fmtCapacity(ln.node.capacity)}</Row>}
+            {ln.node.public && <Row label="Channels">{ln.node.channels ?? 0} open{ln.node.closedChannels ? ` · ${ln.node.closedChannels} closed` : ''}</Row>}
+            {ln.node.public && (ln.node.hosting || ln.node.country) && <Row label="Hosting">{[ln.node.hosting, [ln.node.city, ln.node.country].filter(Boolean).join(', ')].filter(Boolean).join(' · ')}</Row>}
+            {ln.node.firstSeen && <Row label="In the graph since">{fmtDate(new Date(ln.node.firstSeen))}</Row>}
+            <Row label="Route hints">
+              {ln.via.length === 0 ? <span className="muted">None</span> : ln.via.map((v, i) => (
+                <span key={v.pubkey}>{i > 0 && ' · '}{v.public ? <NodeName node={v} /> : <span className="mono">{v.pubkey.slice(0, 12)}…</span>}{v.public && <span className="muted"> ({v.channels} ch, {fmtCapacity(v.capacity)})</span>}</span>
+              ))}
+            </Row>
+            {peers.length > 0 && (
+              <Row label="Same node as">
+                {peers.map((p, i) => <span key={p.id}>{i > 0 && ', '}<Link href={`/mint/${p.id}`} prefetch={false}>{p.name ?? p.url.replace(/^https:\/\//, '')}</Link></span>)}
+              </Row>
+            )}
+            <Row label="Payments received, 7 days">{incoming.attempts ? `${incoming.paid} of ${incoming.attempts} attempts (${Math.round((incoming.paid / incoming.attempts) * 100)} %)` : <span className="muted">No attempts</span>}</Row>
+            <Row label="Largest payment received">{maxReceived ? `${fmtSat(maxReceived)} in 30 days` : <span className="muted">None in 30 days</span>}</Row>
+            <Row label="Checked">{fmtDateTime(new Date(ln.checkedAt))}</Row>
+          </dl>
+        </>
       )}
     </div>
   );

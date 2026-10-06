@@ -57,6 +57,7 @@ export default function Methodology() {
         <li>Clock offset compares the mint&apos;s reported time with the auditor&apos;s clock. The mint reports whole seconds, so offsets below 1 s are noise.</li>
         <li>The TLS certificate issuer and expiry are read on every check. Hosting network (ASN) and IPv4/IPv6 availability are refreshed daily; the country is where the IP block is registered, not necessarily where the server stands.</li>
         <li>Mints that advertise an onion address are checked over Tor every 6 hours.</li>
+        <li>Once a day the audit asks every online mint for a small invoice it never pays. The invoice shows which Lightning node the mint uses and which route hints it gives; the node is then looked up in the public graph (mempool.space, with 1ML as fallback) for channels, capacity and hosting. Mints sharing a node are linked to each other.</li>
       </ul>
 
       <h2>Integrity checks</h2>
