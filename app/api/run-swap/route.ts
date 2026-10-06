@@ -7,14 +7,13 @@ import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { latestStatuses, trustState } from '@/lib/eligible';
+import { startOfDay } from '@/lib/stats';
 import { settleDonationInvoices } from '@/lib/donate';
 import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
 import { DAY, FEE_BUFFER, MAX_SWAP, MIN_AGE_MS as DEST_MIN_AGE_MS, MIN_SWAP, OPERATOR_EXPOSURE as MAX_EXPOSURE, UNPROVEN_DEST_MAX } from '@/lib/constants';
 
 const MAX_BALANCE_FRACTION = 0.1;
 const MAX_DEST_ATTEMPTS = 3;
-const TARGET_PER_DAY = 10;
-const SOURCE_TRIES = 5;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
 
@@ -52,18 +51,20 @@ export async function GET(request: Request) {
     const backoff = await loadBackoff(now);
     const trust = await trustState(now);
     const since = new Date(now - DAY);
-    const [outRows, inRows, pairRows, lastRows, provenRows] = await Promise.all([
+    const [outRows, inRows, pairRows, lastRows, provenRows, todayRows] = await Promise.all([
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { kind: 'swap', timestamp: { gte: since }, ...COUNTED }, _count: { _all: true } }),
       prisma.swap.groupBy({ by: ['destMintId'], where: { kind: 'swap', timestamp: { gte: since }, ...COUNTED }, _count: { _all: true } }),
       prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(now - 7 * DAY) } } }),
       prisma.swap.groupBy({ by: ['destMintId'], _max: { timestamp: true } }),
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' } }),
+      prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(startOfDay(now)) }, ...COUNTED } }),
     ]);
     const outCount = new Map(outRows.map(r => [r.sourceMintId, r._count._all]));
     const inCount = new Map(inRows.map(r => [r.destMintId, r._count._all]));
     const triedPair = new Set(pairRows.map(r => `${r.sourceMintId}>${r.destMintId}`));
     const lastAt = new Map(lastRows.map(r => [r.destMintId, r._max.timestamp?.getTime() ?? 0]));
     const proven = new Set(provenRows.map(r => r.sourceMintId));
+    const pairedToday = new Set(todayRows.map(r => `${r.sourceMintId}>${r.destMintId}`));
 
     const sources = online
       .filter(m => (balanceOf.get(m.id) ?? 0) >= Math.max(MIN_SWAP, bolt11Min(m.methods, 'melt')) + FEE_BUFFER && backoff.canSend(m.id))
@@ -73,19 +74,17 @@ export async function GET(request: Request) {
       const u = uptime.get(m.id);
       return !m.isTest && backoff.canReceive(m.id) && now - m.addedAt.getTime() >= DEST_MIN_AGE_MS && !!u && u.total >= DEST_MIN_CHECKS && u.up / u.total >= DEST_MIN_UPTIME;
     });
-    const minOut = outCount.get(sources[0].id) ?? 0;
-    const minIn = Math.min(...receivers.map(m => inCount.get(m.id) ?? 0));
-    if (minOut >= TARGET_PER_DAY && minIn >= TARGET_PER_DAY) return { recovered, skipped: `Coverage met: every mint has ${TARGET_PER_DAY}+ swaps each way in 24 h` };
 
     let source = sources[0];
     let amount = 0;
     let dests: typeof receivers = [];
-    for (const candidate of sources.slice(0, SOURCE_TRIES)) {
+    for (const candidate of sources) {
       const maxSwap = Math.max(MIN_SWAP, Math.min(MAX_SWAP, Math.floor(total * MAX_BALANCE_FRACTION), (balanceOf.get(candidate.id) ?? 0) - FEE_BUFFER));
       const a = MIN_SWAP + Math.floor(Math.random() * (maxSwap - MIN_SWAP + 1));
       const d = receivers
         .filter(m =>
           m.id !== candidate.id &&
+          !pairedToday.has(`${candidate.id}>${m.id}`) &&
           backoff.canPair(candidate.id, m.id) &&
           Math.max(bolt11Min(candidate.methods, 'melt'), bolt11Min(m.methods, 'mint')) <=
             Math.min(proven.has(m.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, (balanceOf.get(candidate.id) ?? 0) - FEE_BUFFER) &&
@@ -103,7 +102,7 @@ export async function GET(request: Request) {
         break;
       }
     }
-    if (dests.length === 0) return { recovered, error: 'No eligible destination mint' };
+    if (dests.length === 0) return { recovered, skipped: 'Every eligible pair was already swapped today' };
 
     const attempts = [];
     for (const dest of dests.slice(0, MAX_DEST_ATTEMPTS)) {

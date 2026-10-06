@@ -25,6 +25,13 @@ export function parseRange(value: string | undefined): RangeKey {
 const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 export const dayKey = (t: number) => dayFormatter.format(t);
 
+const clockFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+export function startOfDay(now: number) {
+  const [h, m, sec] = clockFormatter.format(now).split(':').map(Number);
+  return now - ((h * 60 + m) * 60 + sec) * 1000 - (now % 1000);
+}
+
 export function lastDays(n: number, now: number): string[] {
   const keys: string[] = [];
   for (let i = n - 1; i >= 0; i--) {
