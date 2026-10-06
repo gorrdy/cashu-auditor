@@ -211,7 +211,7 @@ export default async function MintPage({ params, searchParams }: Props) {
           <div><div className="tile-label">Average swap time</div><div className="tile-value">{fmtMs(stats.all.avgMs)}</div><div className="tile-sub">{stats.errorsBlamed} failure{stats.errorsBlamed === 1 ? '' : 's'} attributed here</div></div>
         </div>
         <div className="tiles" style={{ marginBottom: 20 }}>
-          <div><div className="tile-label">Lightning fee (melts)</div><div className="tile-value">{sd.feePct != null ? `${sd.feePct.toFixed(1)} %` : '—'}</div><div className="tile-sub">avg {sd.avgFee != null ? `${sd.avgFee.toFixed(1)} sat` : '—'} kept of {sd.avgFeeReserve != null ? `${sd.avgFeeReserve.toFixed(1)} sat` : '—'} reserved</div></div>
+          <div><div className="tile-label">Payout time</div><div className="tile-value">{fmtMs(row?.payoutMs ?? null)}</div><div className="tile-sub">median successful payout, 30 days</div></div>
           <div><div className="tile-label">Quotes</div><div className="tile-value">{fmtMs(sd.quoteMs)}</div><div className="tile-sub">median, both mints</div></div>
           <div><div className="tile-label">Lightning payment</div><div className="tile-value">{fmtMs(sd.meltMs)}</div><div className="tile-sub">median melt when paying out</div></div>
           <div><div className="tile-label">Minting</div><div className="tile-value">{fmtMs(sd.mintMs)}</div><div className="tile-sub">median when receiving</div></div>

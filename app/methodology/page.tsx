@@ -74,7 +74,6 @@ export default function Methodology() {
         <li><strong>Availability, 30 days (weight 40).</strong> 90 % or less scores 0, 100 % scores 100, linear in between.</li>
         <li><strong>Swap success, 30 days (30).</strong> Share of the mint&apos;s swaps without a failure attributed to it. Counted from 3 swaps, or from the first attributed failure.</li>
         <li><strong>Response time (10).</strong> Average over 24 hours from Prague. 150 ms scores 100, 2 s scores 0.</li>
-        <li><strong>Lightning fee when paying out (10).</strong> Fee kept as a share of the amount paid. 1 % scores 100, 10 % scores 0.</li>
         <li><strong>Nostr reviews (10).</strong> Average rating out of 5. Needs at least 3 ratings.</li>
       </ul>
 

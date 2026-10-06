@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { computeScore } from '@/lib/score';
 
-const base = { uptime30d: 100, swapOk: 10, swapBlamed: 0, latencyMs: 150, feePct: 1, reviewAvg: 5, reviewCount: 5 };
+const base = { uptime30d: 100, swapOk: 10, swapBlamed: 0, latencyMs: 150, reviewAvg: 5, reviewCount: 5 };
 
 describe('computeScore', () => {
   it('gives a perfect mint 100', () => expect(computeScore(base).score).toBe(100));
   it('is null without availability data', () => expect(computeScore({ ...base, uptime30d: null }).score).toBeNull());
   it('reweights over available parts', () => {
-    const r = computeScore({ uptime30d: 99, swapOk: 0, swapBlamed: 0, latencyMs: 150, feePct: null, reviewAvg: null, reviewCount: 0 });
+    const r = computeScore({ uptime30d: 99, swapOk: 0, swapBlamed: 0, latencyMs: 150, reviewAvg: null, reviewCount: 0 });
     expect(r.score).toBe(Math.round((40 * 90 + 10 * 100) / 50));
   });
   it('counts attributed failures even below the swap minimum', () => {
@@ -20,9 +20,8 @@ describe('computeScore', () => {
     expect(r.parts.find(p => p.key === 'swaps')!.score).toBeNull();
     expect(r.parts.find(p => p.key === 'reviews')!.score).toBeNull();
   });
-  it('clamps slow and expensive mints to zero on those parts', () => {
-    const r = computeScore({ ...base, latencyMs: 5000, feePct: 50 });
+  it('clamps slow mints to zero on latency', () => {
+    const r = computeScore({ ...base, latencyMs: 5000 });
     expect(r.parts.find(p => p.key === 'latency')!.score).toBe(0);
-    expect(r.parts.find(p => p.key === 'fees')!.score).toBe(0);
   });
 });

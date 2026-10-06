@@ -29,7 +29,6 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
     { label: 'Median response', cell: c => fmtMs(c.d?.latencyStats.p50 ?? null) },
     { label: 'Swap success', cell: c => fmtPct(c.d?.swapStats.all.successRate ?? null) },
     { label: 'Payouts / receipts', cell: c => `${c.d?.swapStats.asSource.success ?? 0} / ${c.d?.swapStats.asDest.success ?? 0}` },
-    { label: 'Lightning fee', cell: c => (c.x.swapDetail.feePct == null ? '—' : `${c.x.swapDetail.feePct.toFixed(1)} %`) },
     { label: 'Failures attributed', cell: c => c.d?.swapStats.errorsBlamed ?? 0 },
     { label: 'Input fee', cell: c => fmtPpk(c.d?.mint.inputFeePpk ?? null) },
     { label: 'Software', cell: c => <span className="mono">{c.m.version ?? '—'}</span> },

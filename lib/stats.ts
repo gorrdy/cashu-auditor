@@ -154,10 +154,10 @@ async function computeOverview(now: number) {
   ]);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
-  const month = new Map<string, { ok: number; blamed: number; meltAmount: number; meltFee: number }>();
+  const month = new Map<string, { ok: number; blamed: number }>();
   const monthOf = (id: string) => {
     let m = month.get(id);
-    if (!m) month.set(id, (m = { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 }));
+    if (!m) month.set(id, (m = { ok: 0, blamed: 0 }));
     return m;
   };
 
@@ -201,8 +201,6 @@ async function computeOverview(now: number) {
         else payoutDurations.set(s.sourceMintId, [s.duration]);
         monthOf(s.sourceMintId).ok++;
         monthOf(s.destMintId).ok++;
-        monthOf(s.sourceMintId).meltAmount += s.amount;
-        monthOf(s.sourceMintId).meltFee += s.fee;
       }
       for (const id of [s.sourceMintId, s.destMintId]) counts(id).lastOkAt = Math.max(counts(id).lastOkAt, t);
       continue;
@@ -226,7 +224,7 @@ async function computeOverview(now: number) {
     c.mints = mintedCount.get(m.id) ?? 0;
     c.melts = meltedCount.get(m.id) ?? 0;
     const recentFailure = now - c.lastBlamedAt < DAY && c.lastBlamedAt > c.lastOkAt;
-    const mo = month.get(m.id) ?? { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 };
+    const mo = month.get(m.id) ?? { ok: 0, blamed: 0 };
     const rv = reviewBy.get(m.id);
     const uptime30d = u30 ? pct(u30.up, u30.total) : null;
     const { score, parts: scoreParts } = computeScore({
@@ -234,7 +232,6 @@ async function computeOverview(now: number) {
       swapOk: mo.ok,
       swapBlamed: mo.blamed,
       latencyMs: u24?.avgLatency ?? null,
-      feePct: mo.meltAmount ? (mo.meltFee / mo.meltAmount) * 100 : null,
       reviewAvg: rv?.avg ?? null,
       reviewCount: rv?.count ?? 0,
     });
@@ -457,14 +454,12 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
 
   const errorsBlamed = inRange.filter(s => s.status === 'failed' && blame(s) === id).length;
   let lastOkAt = 0, lastBlamedAt = 0;
-  const month = { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 };
+  const month = { ok: 0, blamed: 0 };
   for (const s of swaps) {
     const t = s.timestamp.getTime();
     if (now - t < 30 * DAY) {
-      if (s.status === 'success') {
-        month.ok++;
-        if (s.sourceMintId === id) { month.meltAmount += s.amount; month.meltFee += s.fee; }
-      } else if (s.status === 'failed' && blame(s) === id) month.blamed++;
+      if (s.status === 'success') month.ok++;
+      else if (s.status === 'failed' && blame(s) === id) month.blamed++;
     }
     if (s.status === 'success') lastOkAt = Math.max(lastOkAt, t);
     else if (blame(s) === id) lastBlamedAt = Math.max(lastBlamedAt, t);
@@ -516,7 +511,6 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
         const v = audits.filter(a => a.status !== 'offline' && now - a.timestamp.getTime() < DAY).map(a => a.latency);
         return v.length ? v.reduce((x, y) => x + y, 0) / v.length : null;
       })(),
-      feePct: month.meltAmount ? (month.meltFee / month.meltAmount) * 100 : null,
     },
   };
 }

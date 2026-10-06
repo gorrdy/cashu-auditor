@@ -43,7 +43,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     prisma.mintReview.findMany({ where: { mintId: id }, orderBy: { createdAt: 'desc' } }),
     prisma.swap.findMany({
       where: { OR: [{ sourceMintId: id }, { destMintId: id }], timestamp: { gte: new Date(since) }, status: 'success', kind: 'swap' },
-      select: { sourceMintId: true, destMintId: true, amount: true, fee: true, feeReserve: true, quoteMs: true, meltMs: true, mintMs: true, dleq: true },
+      select: { sourceMintId: true, destMintId: true, amount: true, fee: true, quoteMs: true, meltMs: true, mintMs: true, dleq: true },
     }),
     prisma.proof.aggregate({ where: { mintId: id, state: 'spent_external' }, _sum: { amount: true }, _count: true }),
     loadBackoff(now),
@@ -109,8 +109,6 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
 
   const melts = swaps.filter(s => s.sourceMintId === id);
   const mints = swaps.filter(s => s.destMintId === id);
-  const meltAmount = melts.reduce((s, x) => s + x.amount, 0);
-  const meltFees = melts.reduce((s, x) => s + x.fee, 0);
   const rated = reviews.filter(r => r.rating !== null);
   const fraUp = frankfurt.filter(a => a.status !== 'offline').length;
 
@@ -147,9 +145,6 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     lost: { sat: lost._sum.amount ?? 0, proofs: lost._count },
     swapDetail: {
       melts: melts.length,
-      feePct: meltAmount ? (meltFees / meltAmount) * 100 : null,
-      avgFee: melts.length ? meltFees / melts.length : null,
-      avgFeeReserve: melts.length ? melts.reduce((s, x) => s + (x.feeReserve ?? 0), 0) / melts.length : null,
       quoteMs: median(swaps.map(s => s.quoteMs)),
       meltMs: median(melts.map(s => s.meltMs)),
       mintMs: median(mints.map(s => s.mintMs)),

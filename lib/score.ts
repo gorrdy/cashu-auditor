@@ -3,7 +3,6 @@ export type ScoreInput = {
   swapOk: number;
   swapBlamed: number;
   latencyMs: number | null;
-  feePct: number | null;
   reviewAvg: number | null;
   reviewCount: number;
 };
@@ -38,13 +37,6 @@ export function computeScore(i: ScoreInput): { score: number | null; parts: Scor
       weight: 10,
       score: i.latencyMs == null ? null : clamp(100 - ((i.latencyMs - 150) / 1850) * 100),
       detail: i.latencyMs == null ? 'no answers yet' : `${Math.round(i.latencyMs)} ms (150 ms scores 100, 2 s scores 0)`,
-    },
-    {
-      key: 'fees',
-      label: 'Lightning fee when paying out',
-      weight: 10,
-      score: i.feePct == null ? null : clamp(100 - ((i.feePct - 1) / 9) * 100),
-      detail: i.feePct == null ? 'no payouts yet' : `${i.feePct.toFixed(1)} % (1 % scores 100, 10 % scores 0)`,
     },
     {
       key: 'reviews',
