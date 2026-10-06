@@ -19,7 +19,8 @@ describe('isPrivateAddress', () => {
 
 describe('normalizeMintUrl', () => {
   it('adds https and strips trailing slashes', () => expect(normalizeMintUrl('Mint.Example.com/Bitcoin/')).toBe('https://mint.example.com/Bitcoin'));
-  it('rejects http', () => expect(normalizeMintUrl('http://mint.example.com')).toBeNull());
+  it('upgrades http to https', () => expect(normalizeMintUrl('http://mint.example.com/')).toBe('https://mint.example.com'));
+  it('adds https to a bare host', () => expect(normalizeMintUrl('  Mint.Example.com/Bitcoin ')).toBe('https://mint.example.com/Bitcoin'));
   it('rejects credentials and query', () => {
     expect(normalizeMintUrl('https://a:b@mint.example.com')).toBeNull();
     expect(normalizeMintUrl('https://mint.example.com/?x=1')).toBeNull();

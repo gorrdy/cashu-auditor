@@ -78,6 +78,14 @@ for (const path of pages) {
     const panel = await page.waitForSelector('.network-panel', { timeout: 5000 }).then(() => true).catch(() => false);
     check(panel, 'network search focuses a mint');
   }
+  await page.click('.add-mint');
+  const addDialog = await page.waitForSelector('dialog.sheet[open] #mint-url', { timeout: 5000 }).then(() => true).catch(() => false);
+  check(addDialog, 'add mint dialog opens');
+  if (addDialog) {
+    await page.fill('#mint-url', 'http://Mint.Example.com/');
+    check((await page.textContent('.add-preview'))?.includes('https://mint.example.com/v1/info'), 'add mint previews the https URL');
+    await page.keyboard.press('Escape');
+  }
   await page.click('.nav-donate');
   const dialog = await page.waitForSelector('dialog.sheet[open]', { timeout: 5000 }).then(() => true).catch(() => false);
   check(dialog, 'donate dialog opens');

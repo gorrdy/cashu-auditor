@@ -10,7 +10,7 @@ import { Suspense } from 'react';
 import { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
-import { AddMintForm } from '@/components/Forms';
+import { AddMintButton } from '@/components/Forms';
 import { DonateButton } from '@/components/Donate';
 import { BoltIcon, CoinIcon } from '@/components/icons';
 import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
@@ -188,7 +188,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
       <section className="section" id="mints">
         <div className="section-head">
-          <h2 className="h2">Mints</h2>
+          <div className="title-row">
+            <h2 className="h2">Mints</h2>
+            <AddMintButton />
+          </div>
           <UptimeLegend />
         </div>
         <nav className="filters" aria-label="Filter mints">
@@ -331,9 +334,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <SwapTable swaps={recent} emptyText="No swaps yet. They start once the audit wallet holds ecash." />
       </section>
 
-      <section className="section two-col">
-        <AddMintForm />
-      </section>
     </>
   );
 }

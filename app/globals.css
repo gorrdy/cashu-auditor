@@ -553,3 +553,6 @@ table.data td, table.data th { padding-left: 8px; padding-right: 8px; }
 .footer-nav a { color: var(--ink-2); }
 @media (max-width: 599px) { .wordmark { font-size: 16px; gap: 8px; } }
 @media (max-width: 1023px) { .nav-wide { display: none; } }
+.title-row { display: flex; align-items: center; gap: 12px; }
+.btn.add-mint { height: 32px; padding: 0 14px 0 10px; gap: 6px; font-size: 13px; }
+.add-preview { margin: 8px 0 14px; min-height: 18px; overflow-wrap: anywhere; }

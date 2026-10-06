@@ -4,7 +4,8 @@ import { isIP } from 'node:net';
 export function normalizeMintUrl(input: string): string | null {
   let raw = input.trim();
   if (!raw) return null;
-  if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+  raw = raw.replace(/^http:\/\//i, 'https://');
+  if (!/^https:\/\//i.test(raw)) raw = 'https://' + raw;
   let url: URL;
   try {
     url = new URL(raw);
