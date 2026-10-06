@@ -12,7 +12,7 @@ import { fmtPpk, keysetVersion } from '@/components/MintSections';
 
 export const metadata: Metadata = { title: 'Compare mints' };
 
-const SLOTS = 3;
+const MAX_MINTS = 5;
 
 type Overview = Awaited<ReturnType<typeof getOverview>>['mints'][number];
 type Column = { m: Overview; d: Awaited<ReturnType<typeof getMintDetail>>; x: Awaited<ReturnType<typeof getMintExtras>> };
@@ -83,7 +83,7 @@ function quickPicks(mints: Overview[]) {
 
 export default async function Compare({ searchParams }: { searchParams: Promise<{ m?: string | string[] }> }) {
   const raw = (await searchParams).m;
-  const ids = [...new Set((Array.isArray(raw) ? raw : raw ? [raw] : []).filter(isMintId))].slice(0, SLOTS);
+  const ids = [...new Set((Array.isArray(raw) ? raw : raw ? [raw] : []).filter(isMintId))].slice(0, MAX_MINTS);
   const { mints } = await getOverview();
   const options = [...mints].filter(m => !m.longOffline).sort((a, b) => mintLabel(a).localeCompare(mintLabel(b)));
   const picked = ids.map(id => mints.find(m => m.id === id)).filter((m): m is Overview => !!m);
@@ -94,26 +94,14 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
     <>
       <p className="eyebrow">Compare</p>
       <h1 className="h1" style={{ marginTop: 8 }}>Compare mints</h1>
-      <p className="soft" style={{ margin: '8px 0 0' }}>Up to three mints side by side over the last 30 days. The best value in each row is highlighted.</p>
+      <p className="soft" style={{ margin: '8px 0 0' }}>Up to five mints side by side over the last 30 days. The best value in each row is highlighted.</p>
 
-      <CompareForm options={options.map(o => ({ id: o.id, label: mintLabel(o) }))} selected={picked.map(m => m.id)} slots={SLOTS} />
+      <CompareForm options={options.map(o => ({ id: o.id, label: mintLabel(o) }))} selected={picked.map(m => m.id)} max={MAX_MINTS} presets={quickPicks(mints)} />
 
       {cols.length === 0 ? (
-        <section className="section">
-          <div className="card cmp-empty">
-            <h2 className="h2">Pick mints above, or start from one of these</h2>
-            <div className="cmp-picks">
-              {quickPicks(mints).map(p => (
-                <Link key={p.label} href={`/compare?${p.ids.map(id => `m=${id}`).join('&')}`} prefetch={false} className="cmp-pick">
-                  <strong>{p.label}</strong>
-                  <span className="small soft">{p.ids.map(id => mintLabel(mints.find(m => m.id === id)!)).join(' · ')}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
+        <p className="small muted" style={{ marginTop: 24 }}>Choose at least one mint, or start from a quick pick.</p>
       ) : (
-        <section className="section cmp" style={style}>
+        <section className="section cmp" style={style} data-cols={cols.length}>
           <div className="cmp-row cmp-heads">
             <div className="cmp-label" aria-hidden="true" />
             {cols.map(c => (

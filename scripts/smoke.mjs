@@ -30,7 +30,7 @@ const check = (ok, name, detail = '') => {
 const api = await fetch(`${BASE}/api/v1/mints`).then(r => (r.ok ? r.json() : null)).catch(() => null);
 check(!!api && Array.isArray(api.mints) && api.mints.length > 0, 'GET /api/v1/mints');
 const mintId = api?.mints?.find(m => m.state === 'ok')?.id ?? api?.mints?.[0]?.id;
-const compareIds = (api?.mints ?? []).slice(0, 3).map(m => `m=${m.id}`).join('&');
+const compareIds = (api?.mints ?? []).slice(0, 5).map(m => `m=${m.id}`).join('&');
 
 for (const [path, status] of [['/api/run-swap', 401], ['/api/status', 401], ['/api/v1/network?range=7d', 200], ['/nope', 404]]) {
   const r = await fetch(`${BASE}${path}`).catch(() => null);

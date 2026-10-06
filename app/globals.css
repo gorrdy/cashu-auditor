@@ -646,10 +646,6 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .cmp-slot-n { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--on-accent); background: var(--accent); pointer-events: none; }
 .cmp-slot select { padding-left: 44px; height: 46px; font-weight: 600; cursor: pointer; }
 
-.cmp-empty .h2 { margin-bottom: 16px; }
-.cmp-picks { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
-.cmp-pick { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 16px; background: var(--surface-2); color: var(--ink); }
-.cmp-pick:hover { text-decoration: none; background: var(--accent-wash); }
 
 .cmp { --cmp-label: 220px; }
 .cmp-row { display: grid; grid-template-columns: var(--cmp-label) repeat(var(--cmp-cols), minmax(0, 1fr)); gap: 0 12px; align-items: center; }
@@ -690,3 +686,35 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .cmp-software .mono { overflow-wrap: normal; word-break: normal; }
 .cmp-head .mint-icon { display: block; }
 .cmp-head .mint-icon.mint-mono { display: inline-flex; }
+.cmp-controls { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+.cmp-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cmp-preset { padding: 6px 14px; border-radius: 999px; background: var(--accent-wash); color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+.cmp-preset:hover { text-decoration: none; background: var(--accent); color: var(--on-accent); }
+.cmp-form { margin-top: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.cmp-slot select {
+  -webkit-appearance: none; appearance: none; width: 100%; padding: 0 40px 0 46px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%237d8199' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+}
+.cmp-slot:has(.cmp-remove) select { padding-right: 64px; background-position: right 40px center; }
+.cmp-remove { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); cursor: pointer; }
+.cmp-remove:hover { background: var(--surface); color: var(--ink); }
+.cmp-add { height: 46px; gap: 6px; }
+@media (max-width: 759px) {
+  .cmp[data-cols="4"] .cmp-cell, .cmp[data-cols="5"] .cmp-cell { font-size: 12px; }
+  .cmp[data-cols="4"] .cmp-score b, .cmp[data-cols="5"] .cmp-score b { font-size: 20px; line-height: 24px; }
+  .cmp[data-cols="4"] .cmp-head, .cmp[data-cols="5"] .cmp-head { padding: 10px 8px; }
+  .cmp[data-cols="4"] .cmp-score span, .cmp[data-cols="5"] .cmp-score span { display: none; }
+}
+@media (min-width: 760px) and (max-width: 1023px) {
+  .cmp[data-cols="4"] .cmp-row, .cmp[data-cols="5"] .cmp-row { grid-template-columns: repeat(var(--cmp-cols), minmax(0, 1fr)); gap: 4px 10px; }
+  .cmp[data-cols="4"] .cmp-row .cmp-label, .cmp[data-cols="5"] .cmp-row .cmp-label { grid-column: 1 / -1; font-size: 12px; line-height: 16px; }
+  .cmp[data-cols="4"] .cmp-heads .cmp-label, .cmp[data-cols="5"] .cmp-heads .cmp-label { display: none; }
+}
+@media (max-width: 759px) {
+  .cmp[data-cols="4"] .cmp-head-top, .cmp[data-cols="5"] .cmp-head-top { flex-wrap: wrap; gap: 4px; }
+  .cmp[data-cols="4"] .cmp-head .mint-icon, .cmp[data-cols="5"] .cmp-head .mint-icon { width: 26px !important; height: 26px !important; font-size: 12px !important; }
+  .cmp[data-cols="5"] .cmp-heads { gap: 6px; }
+  .cmp[data-cols="5"] .cmp-row { gap: 4px 6px; }
+}
