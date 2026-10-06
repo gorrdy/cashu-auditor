@@ -31,6 +31,7 @@ const COLUMNS = {
   errors: ['Errors', 'Errors'],
 } as const;
 type SortKey = keyof typeof COLUMNS;
+const SORT_FIRST: Record<SortKey, 'asc' | 'desc'> = { state: 'asc', name: 'asc', score: 'desc', uptime: 'desc', latency: 'asc', payout: 'asc', balance: 'desc', errors: 'asc' };
 
 type Row = Awaited<ReturnType<typeof getOverview>>['mints'][number];
 
@@ -218,29 +219,42 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               </details>
             );
           })()}
+          <details className="filter-menu sort-menu">
+            <summary>Sort: {COLUMNS[sort][0]}</summary>
+            <div className="filter-list">
+              {(Object.keys(COLUMNS) as SortKey[]).map(k => {
+                const d = k === sort ? (dir === 'asc' ? 'desc' : 'asc') : SORT_FIRST[k];
+                return (
+                  <Link key={k} href={`/?${query}${query ? '&' : ''}sort=${k}&dir=${d}`} scroll={false} prefetch={false}>
+                    <span className="check" aria-hidden="true">{k === sort ? (dir === 'asc' ? '▲' : '▼') : ''}</span>{COLUMNS[k][0]}
+                  </Link>
+                );
+              })}
+            </div>
+          </details>
           <span className="small muted">{rows.length} of {allActive.length} mints{terms.length && archivedAll.length ? ` · ${archived.length} of ${archivedAll.length} long offline` : ''}</span>
         </nav>
-        <div className="table-wrap">
-          <table className="data">
+        <div className="table-wrap mints-wrap">
+          <table className="data mints-table">
             <thead>
               <tr>
-                <SortHeader col="state" sort={sort} dir={dir} query={query} />
-                <SortHeader col="name" sort={sort} dir={dir} query={query} />
-                <SortHeader col="score" sort={sort} dir={dir} align="r" className="c-sm" query={query} first="desc" />
-                <th className="c-lg">Last 24 h</th>
-                <SortHeader col="uptime" sort={sort} dir={dir} query={query} align="r" />
-                <SortHeader col="latency" sort={sort} dir={dir} query={query} align="r" />
-                <SortHeader col="payout" sort={sort} dir={dir} query={query} align="r" className="c-lg" />
-                <th className="c-2xl">Version</th>
-                <SortHeader col="balance" sort={sort} dir={dir} query={query} align="r" className="c-lg" />
-                <SortHeader col="errors" sort={sort} dir={dir} query={query} align="r" className="c-md" />
+                <SortHeader col="state" sort={sort} dir={dir} query={query} className="col-state" />
+                <SortHeader col="name" sort={sort} dir={dir} query={query} className="col-mint" />
+                <SortHeader col="score" sort={sort} dir={dir} align="r" className="col-score" query={query} first="desc" />
+                <th className="col-strip">Last 24 h</th>
+                <SortHeader col="uptime" sort={sort} dir={dir} query={query} align="r" className="col-uptime" />
+                <SortHeader col="latency" sort={sort} dir={dir} query={query} align="r" className="col-latency" />
+                <SortHeader col="payout" sort={sort} dir={dir} query={query} align="r" className="col-payout" />
+                <th className="col-version">Version</th>
+                <SortHeader col="balance" sort={sort} dir={dir} query={query} align="r" className="col-balance" />
+                <SortHeader col="errors" sort={sort} dir={dir} query={query} align="r" className="col-errors" />
               </tr>
             </thead>
             <tbody>
               {rows.map(m => (
                 <tr key={m.id}>
-                  <td><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></td>
-                  <td>
+                  <td className="col-state"><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></td>
+                  <td className="col-mint">
                     <div className="mint-cell">
                       <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                       <div style={{ minWidth: 0 }}>
@@ -252,22 +266,22 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       </div>
                     </div>
                   </td>
-                  <td className="r nowrap c-sm" title={m.scoreParts.map(p => `${p.label}: ${p.score == null ? '—' : Math.round(p.score)} (${p.detail})`).join('\n')}>
+                  <td className="r nowrap col-score" data-label="Score" title={m.scoreParts.map(p => `${p.label}: ${p.score == null ? '—' : Math.round(p.score)} (${p.detail})`).join('\n')}>
                     {m.score == null ? <span className="muted">—</span> : <strong className="num">{m.score}</strong>}
                   </td>
-                  <td className="c-lg">
+                  <td className="col-strip">
                     <HourStrip values={m.strip.map(v => (v == null ? null : Math.round(v * 100) / 100))} firstHour={currentHour - 23} label={`Hourly availability of ${mintLabel(m)} in the last 24 hours`} />
                   </td>
-                  <td className="r nowrap" title={`24 h ${fmtPct(m.uptime24h)} · 7 d ${fmtPct(m.uptime7d)}`}>{fmtPct(m.uptime30d)}</td>
-                  <td className="r nowrap">{fmtMs(m.avgLatency24h)}</td>
-                  <td className="r nowrap c-lg" title="Median time of a successful payout from this mint, 30 days">{m.payoutMs == null ? <span className="muted">—</span> : fmtMs(m.payoutMs)}</td>
-                  <td className="mono soft nowrap c-2xl"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
-                  <td className="r nowrap c-lg">{m.balance ? fmtSat(m.balance) : <span className="muted">—</span>}</td>
-                  <td className="r nowrap c-md">{m.errors || <span className="muted">0</span>}</td>
+                  <td className="r nowrap col-uptime" data-label="Uptime 30 d" title={`24 h ${fmtPct(m.uptime24h)} · 7 d ${fmtPct(m.uptime7d)}`}>{fmtPct(m.uptime30d)}</td>
+                  <td className="r nowrap col-latency" data-label="Latency">{fmtMs(m.avgLatency24h)}</td>
+                  <td className="r nowrap col-payout" data-label="Payout" title="Median time of a successful payout from this mint, 30 days">{m.payoutMs == null ? <span className="muted">—</span> : fmtMs(m.payoutMs)}</td>
+                  <td className="mono soft nowrap col-version"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
+                  <td className="r nowrap col-balance">{m.balance ? fmtSat(m.balance) : <span className="muted">—</span>}</td>
+                  <td className="r nowrap col-errors">{m.errors || <span className="muted">0</span>}</td>
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={9} className="muted" style={{ textAlign: 'center', padding: 32 }}>{mints.length ? (archived.length ? 'No active mint matches. See long offline mints below.' : 'No mint matches these filters.') : 'No mints tracked yet.'}</td></tr>
+                <tr><td colSpan={10} className="muted empty-row" style={{ textAlign: 'center', padding: 32 }}>{mints.length ? (archived.length ? 'No active mint matches. See long offline mints below.' : 'No mint matches these filters.') : 'No mints tracked yet.'}</td></tr>
               )}
             </tbody>
           </table>
