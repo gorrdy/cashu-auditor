@@ -7,7 +7,8 @@ import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { latestStatuses, trustState } from '@/lib/eligible';
-import { startOfDay } from '@/lib/stats';
+import { startOfDay } from '@/lib/time';
+import { mintFreshness, pairKey, pairPriority, pairStates } from '@/lib/pairSchedule';
 import { settleDonationInvoices } from '@/lib/donate';
 import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
 import { DAY, FEE_BUFFER, MAX_SWAP, MIN_AGE_MS as DEST_MIN_AGE_MS, MIN_SWAP, OPERATOR_EXPOSURE as MAX_EXPOSURE, UNPROVEN_DEST_MAX } from '@/lib/constants';
@@ -16,6 +17,7 @@ const MAX_BALANCE_FRACTION = 0.1;
 const MAX_DEST_ATTEMPTS = 3;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
+const HISTORY_DAYS = 90;
 
 async function uptime24h(now: number) {
   const rows = await prisma.$queryRaw<{ mintId: string; total: bigint; up: bigint }[]>`
@@ -50,16 +52,21 @@ export async function GET(request: Request) {
     const home = homeMintUrl();
     const backoff = await loadBackoff(now);
     const trust = await trustState(now);
-    const [outRows, pairRows, provenRows, todayRows] = await Promise.all([
-      prisma.swap.groupBy({ by: ['sourceMintId'], where: { kind: 'swap', timestamp: { gte: new Date(now - DAY) }, ...COUNTED }, _count: { _all: true } }),
-      prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(now - 30 * DAY) }, ...COUNTED }, _max: { timestamp: true } }),
+    const [history, provenRows] = await Promise.all([
+      prisma.swap.findMany({
+        where: { kind: 'swap', timestamp: { gte: new Date(now - HISTORY_DAYS * DAY) }, ...COUNTED },
+        select: { sourceMintId: true, destMintId: true, status: true, timestamp: true },
+        orderBy: { timestamp: 'desc' },
+      }),
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' } }),
-      prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(startOfDay(now)) }, ...COUNTED } }),
     ]);
-    const outCount = new Map(outRows.map(r => [r.sourceMintId, r._count._all]));
-    const pairLast = new Map(pairRows.map(r => [`${r.sourceMintId}>${r.destMintId}`, r._max.timestamp?.getTime() ?? 0]));
     const proven = new Set(provenRows.map(r => r.sourceMintId));
-    const pairedToday = new Set(todayRows.map(r => `${r.sourceMintId}>${r.destMintId}`));
+    const states = pairStates(history);
+    const fresh = mintFreshness(history, now);
+    const today = startOfDay(now);
+    const pairedToday = new Set(history.filter(h => h.timestamp.getTime() >= today).map(h => pairKey(h.sourceMintId, h.destMintId)));
+    const outCount = new Map<string, number>();
+    for (const h of history) if (now - h.timestamp.getTime() < DAY) outCount.set(h.sourceMintId, (outCount.get(h.sourceMintId) ?? 0) + 1);
 
     const sources = online.filter(
       m => (balanceOf.get(m.id) ?? 0) >= Math.max(MIN_SWAP, bolt11Min(m.methods, 'melt')) + FEE_BUFFER && backoff.canSend(m.id)
@@ -70,21 +77,22 @@ export async function GET(request: Request) {
       return !m.isTest && backoff.canReceive(m.id) && now - m.addedAt.getTime() >= DEST_MIN_AGE_MS && !!u && u.total >= DEST_MIN_CHECKS && u.up / u.total >= DEST_MIN_UPTIME;
     });
 
-    const candidates: { source: (typeof sources)[number]; dest: (typeof receivers)[number]; amount: number; rank: number }[] = [];
+    const candidates: { source: (typeof sources)[number]; dest: (typeof receivers)[number]; amount: number; priority: number }[] = [];
     for (const source of sources) {
       const available = (balanceOf.get(source.id) ?? 0) - FEE_BUFFER;
       const maxSwap = Math.max(MIN_SWAP, Math.min(MAX_SWAP, Math.floor(total * MAX_BALANCE_FRACTION), available));
       const amount = MIN_SWAP + Math.floor(Math.random() * (maxSwap - MIN_SWAP + 1));
       for (const dest of receivers) {
-        const key = `${source.id}>${dest.id}`;
-        if (dest.id === source.id || pairedToday.has(key) || !backoff.canPair(source.id, dest.id)) continue;
+        if (dest.id === source.id || pairedToday.has(pairKey(source.id, dest.id)) || !backoff.canPair(source.id, dest.id)) continue;
+        const priority = pairPriority(source.id, dest.id, states, fresh, now);
+        if (priority === null) continue;
         if (Math.max(bolt11Min(source.methods, 'melt'), bolt11Min(dest.methods, 'mint')) > Math.min(proven.has(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, available)) continue;
         if (dest.url !== home && ((balanceOf.get(dest.id) ?? 0) + amount > MAX_EXPOSURE || !trust.canHoldMore(dest.id, amount))) continue;
-        candidates.push({ source, dest, amount, rank: (pairLast.get(key) ?? 0) + (outCount.get(source.id) ?? 0) + Math.random() });
+        candidates.push({ source, dest, amount, priority: priority - (outCount.get(source.id) ?? 0) / 1000 + Math.random() / 1e6 });
       }
     }
-    if (candidates.length === 0) return { recovered, skipped: 'Every eligible pair was already swapped today' };
-    candidates.sort((a, b) => a.rank - b.rank);
+    if (candidates.length === 0) return { recovered, skipped: 'No pair is due' };
+    candidates.sort((a, b) => b.priority - a.priority);
     const { source, amount } = candidates[0];
     const dests = candidates.filter(c => c.source.id === source.id).map(c => c.dest);
 

@@ -17,6 +17,7 @@ import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf,
 
 export const revalidate = 60;
 
+const RUNWAY_SCALE_DAYS = 60;
 const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 1, unknown: 2, error: 3 };
 
 const COLUMNS = {
@@ -107,6 +108,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     return dir === 'asc' ? c : -c;
   });
 
+  const runway = totals.runwayDays;
+  const runwayLevel = runway == null ? 'good' : runway < 10 ? 'critical' : runway < 30 ? 'warning' : 'good';
   const firstActive = swapsPerDay.findIndex(d => d.success + d.failed + d.pending > 0);
   const bars = swapsPerDay
     .slice(firstActive < 0 ? 0 : Math.max(0, Math.min(firstActive, swapsPerDay.length - 7)))
@@ -157,8 +160,24 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
       <section className="fund-strip" aria-label="Fund the audit">
         <div className="fund-text">
-          <p className="fund-title">Keep the swaps running</p>
-          <p className="soft small" style={{ margin: 0 }}>Each swap spends real sats on Lightning fees. Donations fund the next ones.</p>
+          {runway == null ? (
+            <>
+              <p className="fund-title">Keep the swaps running</p>
+              <p className="soft small" style={{ margin: 0 }}>Each swap spends real sats on Lightning fees. Donations fund the next ones.</p>
+            </>
+          ) : (
+            <>
+              <p className="fund-title">
+                {runway < 1 ? 'Swaps are funded for less than a day' : <>Swaps are funded for <b className={`runway-days runway-${runwayLevel}`}>{Math.floor(runway)} more {Math.floor(runway) === 1 ? 'day' : 'days'}</b></>}
+              </p>
+              <div className="runway" role="img" aria-label={`About ${Math.floor(runway)} days of swaps left`}>
+                <i className={`runway-${runwayLevel}`} style={{ width: `${Math.min(100, (runway / RUNWAY_SCALE_DAYS) * 100)}%` }} />
+              </div>
+              <p className="soft small" style={{ margin: 0 }}>
+                At about {fmtSat(totals.feesPerDay)} a day in Lightning fees. Every donation adds days.
+              </p>
+            </>
+          )}
         </div>
         <div className="fund-actions">
           <DonateButton className="btn"><BoltIcon /> Lightning</DonateButton>

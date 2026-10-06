@@ -434,3 +434,10 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .donate-done-title { margin: 14px 0 4px; font-size: 20px; line-height: 28px; font-weight: 600; }
 .amount-input input::-webkit-outer-spin-button, .amount-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .amount-input input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.runway { height: 6px; margin: 8px 0 8px; border-radius: 3px; background: var(--surface-2); overflow: hidden; max-width: 420px; }
+.runway i { display: block; height: 100%; border-radius: 3px; }
+.runway i.runway-good { background: var(--good); }
+.runway i.runway-warning { background: var(--warning); }
+.runway i.runway-critical { background: var(--critical); }
+.runway-days { font-weight: 600; }
+b.runway-critical { color: var(--critical); }

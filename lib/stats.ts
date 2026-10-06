@@ -4,6 +4,7 @@ import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
 import { latestAudits } from './eligible';
+import { FEE_BUDGET_PER_DAY, feesSince, STOP_BELOW } from './budget';
 import { DAY, HOUR } from './constants';
 
 export { HOUR, DAY } from './constants';
@@ -24,13 +25,6 @@ export function parseRange(value: string | undefined): RangeKey {
 
 const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 export const dayKey = (t: number) => dayFormatter.format(t);
-
-const clockFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-export function startOfDay(now: number) {
-  const [h, m, sec] = clockFormatter.format(now).split(':').map(Number);
-  return now - ((h * 60 + m) * 60 + sec) * 1000 - (now % 1000);
-}
 
 export function lastDays(n: number, now: number): string[] {
   const keys: string[] = [];
@@ -126,7 +120,7 @@ export function getOverview(now?: number) {
 }
 
 async function computeOverview(now: number) {
-  const [mints, latest, uptime, strips, balances, donations, swapTotals, allSwaps, mintedBy, meltedBy, reviews, history] = await Promise.all([
+  const [mints, latest, uptime, strips, balances, donations, swapTotals, allSwaps, mintedBy, meltedBy, reviews, history, fees7d, fees24h, firstSwap] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true } }),
     latestAudits(now),
     uptimeWindows(now),
@@ -146,6 +140,9 @@ async function computeOverview(now: number) {
     prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' }, _count: { _all: true } }),
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
     onlineHistory(),
+    feesSince(now - 7 * DAY),
+    feesSince(now - DAY),
+    prisma.swap.findFirst({ orderBy: { timestamp: 'asc' }, select: { timestamp: true } }),
   ]);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
@@ -280,11 +277,17 @@ async function computeOverview(now: number) {
         .map(a => ({ id: a.id, url: a.url, name: a.name, latestStatus: a.latestStatus, latency: a.latestLatency, uptime24h: a.uptime24h })),
     }));
 
+  const balance = primaries.filter(r => !r.isTest).reduce((s, r) => s + r.balance, 0);
+  const spendDays = firstSwap ? Math.min(7, Math.max(1, (now - firstSwap.timestamp.getTime()) / DAY)) : 0;
+  const feesPerDay = spendDays ? Math.min(FEE_BUDGET_PER_DAY, Math.max(fees7d / spendDays, fees24h)) : 0;
+
   return {
     now,
     mints: primaries,
     totals: {
-      balance: primaries.filter(r => !r.isTest).reduce((s, r) => s + r.balance, 0),
+      balance,
+      feesPerDay: Math.round(feesPerDay),
+      runwayDays: feesPerDay > 0 ? Math.max(0, balance - STOP_BELOW) / feesPerDay : null,
       reserved: primaries.reduce((s, r) => s + r.reserved, 0),
       donated: primaries.reduce((s, r) => s + r.donated, 0),
       online: primaries.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
