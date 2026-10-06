@@ -3,6 +3,7 @@ import { getMintDetail } from '@/lib/stats';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import { isMintId } from '@/lib/mintUrl';
+import { mintPage } from '@/lib/site';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,6 +44,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     integrity: x.checks,
     changes: x.events,
     reviews: { count: x.reviews.count, rated: x.reviews.rated, average: x.reviews.average },
-    page: `https://audit.cashu.cz/mint/${m.id}`,
+    page: mintPage(m.id),
   });
 }

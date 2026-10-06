@@ -1,4 +1,5 @@
 import { getOverview } from './stats';
+import { mintPage } from './site';
 
 export const API_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -34,7 +35,7 @@ export async function mintList() {
       lastCheck: m.checkedAt ? new Date(m.checkedAt).toISOString() : null,
       offlineSince: m.offlineSince ? new Date(m.offlineSince).toISOString() : null,
       longOffline: m.longOffline,
-      page: `https://audit.cashu.cz/mint/${m.id}`,
+      page: mintPage(m.id),
     })),
   };
 }

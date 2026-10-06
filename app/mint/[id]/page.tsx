@@ -16,6 +16,7 @@ import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import ScoreTrend from '@/components/ScoreTrend';
 import { fmtAgo, fmtDate, fmtDateTime, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
+import { mintPage, SITE_URL } from '@/lib/site';
 
 export const revalidate = 60;
 
@@ -319,8 +320,8 @@ export default async function MintPage({ params, searchParams }: Props) {
             <p className="small soft" style={{ margin: '8px 0 0' }}>
               For mint operators: paste one of these into your website or README to show this badge, linked to this page. It updates every few minutes.
             </p>
-            <CopyField label="HTML" value={`<a href="https://audit.cashu.cz/mint/${mint.id}"><img src="https://audit.cashu.cz/badge/${mint.id}.svg" alt="Cashu Audit"></a>`} />
-            <CopyField label="Markdown" value={`[![Cashu Audit](https://audit.cashu.cz/badge/${mint.id}.svg)](https://audit.cashu.cz/mint/${mint.id})`} />
+            <CopyField label="HTML" value={`<a href="${mintPage(mint.id)}"><img src="${SITE_URL}/badge/${mint.id}.svg" alt="Cashu Audit"></a>`} />
+            <CopyField label="Markdown" value={`[![Cashu Audit](${SITE_URL}/badge/${mint.id}.svg)](${mintPage(mint.id)})`} />
           </details>
           <p className="small muted" style={{ margin: '8px 0 0' }}>Data for this mint: <a href={`/api/v1/mints/${mint.id}`}>JSON</a></p>
         </div>

@@ -1,10 +1,13 @@
 import { prisma } from './prisma';
 import type { PaymentMethod } from './probe';
+import { HOUR, MIN_AGE_MS, OPERATOR_EXPOSURE } from './constants';
+
+export { MIN_AGE_MS };
 
 export type LatestAudit = { mintId: string; status: string; latency: number; timestamp: number; error: string | null };
 
 export async function latestAudits(now = Date.now()) {
-  const since = now - 2 * 3_600_000;
+  const since = now - 2 * HOUR;
   return prisma.$queryRaw<LatestAudit[]>`
     SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
     JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' AND timestamp >= ${since} GROUP BY mintId) l
@@ -36,8 +39,6 @@ export async function swappableMints() {
 export const unspentBalance = async (mintId: string) =>
   (await prisma.proof.aggregate({ where: { mintId, state: 'unspent' }, _sum: { amount: true } }))._sum.amount ?? 0;
 
-export const MIN_AGE_MS = 3 * 86_400_000;
-export const OPERATOR_EXPOSURE = 600;
 
 export async function trustState(now = Date.now()) {
   const [mints, balances, payouts] = await Promise.all([

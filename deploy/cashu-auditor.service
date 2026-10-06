@@ -14,6 +14,8 @@ Environment=HOME=/srv/cashu-auditor
 ExecStart=/opt/node-v24.21.0/bin/node node_modules/next/dist/bin/next start -H ${BIND_HOST} -p ${PORT}
 Restart=always
 RestartSec=5
+SuccessExitStatus=143
+TimeoutStopSec=15
 UMask=0077
 MemoryMax=1G
 TasksMax=256

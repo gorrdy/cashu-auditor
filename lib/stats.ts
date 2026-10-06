@@ -1,12 +1,12 @@
 import { prisma } from './prisma';
-import { makeBlame } from './blame';
+import { BLAME_SELECT, makeBlame } from './blame';
 import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
 import { latestAudits } from './eligible';
+import { DAY, HOUR } from './constants';
 
-export const HOUR = 3_600_000;
-export const DAY = 24 * HOUR;
+export { HOUR, DAY } from './constants';
 export const TZ = 'Europe/Prague';
 
 export type MintState = 'ok' | 'warn' | 'error' | 'unknown';
@@ -332,7 +332,7 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
     prisma.donation.aggregate({ where: { mintId: id }, _sum: { amount: true } }),
     prisma.swap.findMany({
       where: { timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP },
-      select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
+      select: BLAME_SELECT,
     }),
     prisma.auditHourly.findMany({
       where: { mintId: id, location: 'prague', hour: { gte: new Date(since90) } },

@@ -6,6 +6,7 @@ import { COUNTED_SWAP } from './counted';
 
 const FRANKFURT_SEQUENTIAL_FROM = Date.parse('2026-10-04T07:05:00Z');
 import { lastDays } from './stats';
+import { DAY } from './constants';
 
 const median = (values: (number | null | undefined)[]) => {
   const v = values.filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
@@ -37,7 +38,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
       select: { timestamp: true, status: true, latency: true, dnsMs: true, connectMs: true, tlsMs: true, ttfbMs: true },
     }),
     prisma.mintEvent.findMany({ where: { mintId: id }, orderBy: { timestamp: 'desc' }, take: 30 }),
-    prisma.mintCheck.findMany({ where: { mintId: id, timestamp: { gte: new Date(now - 30 * 86_400_000) } }, orderBy: { timestamp: 'desc' } }),
+    prisma.mintCheck.findMany({ where: { mintId: id, timestamp: { gte: new Date(now - 30 * DAY) } }, orderBy: { timestamp: 'desc' } }),
     prisma.mintReview.findMany({ where: { mintId: id }, orderBy: { createdAt: 'desc' } }),
     prisma.swap.findMany({
       where: { OR: [{ sourceMintId: id }, { destMintId: id }], timestamp: { gte: new Date(since) }, status: 'success', kind: 'swap' },
@@ -72,7 +73,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     aliasMints.map(async a => {
       const [last, day] = await Promise.all([
         prisma.auditLog.findFirst({ where: { mintId: a.id, location: 'prague' }, orderBy: { timestamp: 'desc' }, select: { status: true, latency: true, error: true, timestamp: true } }),
-        prisma.auditLog.groupBy({ by: ['status'], where: { mintId: a.id, location: 'prague', timestamp: { gte: new Date(now - 86_400_000) } }, _count: { _all: true } }),
+        prisma.auditLog.groupBy({ by: ['status'], where: { mintId: a.id, location: 'prague', timestamp: { gte: new Date(now - DAY) } }, _count: { _all: true } }),
       ]);
       const total = day.reduce((s, x) => s + x._count._all, 0);
       const up = day.filter(x => x.status !== 'offline').reduce((s, x) => s + x._count._all, 0);

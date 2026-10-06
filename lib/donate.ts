@@ -7,13 +7,15 @@ import { withWalletLock } from './lock';
 import { assertPublicMintUrl, normalizeMintUrl } from './mintUrl';
 import { errorMessage, storeProofs, withTimeout } from './transfer';
 import { publish } from './events';
+import { DAY, HOUR } from './constants';
+import { SITE_URL } from './site';
 
 export type DonateResult = { ok?: string; error?: string };
 
 export const INVOICE_MIN = 100;
 export const INVOICE_MAX = 1_000_000;
 const MAX_OPEN_INVOICES = 20;
-const PAY_URL = 'https://audit.cashu.cz/api/v1/pay';
+const PAY_URL = `${SITE_URL}/api/v1/pay`;
 const BUSY = 'The auditor wallet is busy with a swap. Try again in a minute.';
 
 export function qrSvg(text: string) {
@@ -120,7 +122,7 @@ export async function createDonationInvoice(amount: number) {
     const wallet = createWallet(home);
     await withTimeout(wallet.loadMint());
     const quote = await withTimeout(wallet.createMintQuoteBolt11(amount));
-    const expiresAt = new Date(quote.expiry ? quote.expiry * 1000 : Date.now() + 3_600_000);
+    const expiresAt = new Date(quote.expiry ? quote.expiry * 1000 : Date.now() + HOUR);
     const row = await prisma.donationInvoice.create({ data: { quoteId: quote.quote, amount, request: quote.request, expiresAt } });
     return { id: row.id, request: quote.request, qr: await qrSvg(`lightning:${quote.request}`.toUpperCase()), expiresAt: expiresAt.getTime() };
   } catch (error) {
@@ -182,7 +184,7 @@ export async function settleDonationInvoices() {
   const home = await homeMint();
   if (!home) return 0;
   const open = await prisma.donationInvoice.findMany({
-    where: { status: 'unpaid', createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } },
+    where: { status: 'unpaid', createdAt: { gte: new Date(Date.now() - 7 * DAY) } },
     orderBy: { createdAt: 'asc' },
     take: 20,
   });

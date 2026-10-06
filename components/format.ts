@@ -1,6 +1,6 @@
 import { TZ } from '@/lib/stats';
 
-export const HOUR_MS = 3_600_000;
+export { HOUR as HOUR_MS } from '@/lib/constants';
 
 const dateTime = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const dateOnly = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });

@@ -5,8 +5,8 @@ import { withWalletLock } from '@/lib/lock';
 import { homeMintUrl } from '@/lib/consolidate';
 import { transfer } from '@/lib/transfer';
 import { MIN_AGE_MS, swappableMints, trustState, unspentBalance as balance } from '@/lib/eligible';
+import { FEE_BUFFER } from '@/lib/constants';
 
-const FEE_BUFFER = 10;
 
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

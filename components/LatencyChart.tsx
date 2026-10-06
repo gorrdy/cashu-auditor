@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { DAY } from '@/lib/constants';
 
 export type LatencyPoint = { t: number; p50: number | null; p95: number | null; n: number };
 
@@ -29,7 +30,7 @@ export default function LatencyChart({ points, bucketMs, spanMs, secondary }: { 
     return () => ro.disconnect();
   }, []);
 
-  const tick = new Intl.DateTimeFormat('en-GB', spanMs <= 86_400_000
+  const tick = new Intl.DateTimeFormat('en-GB', spanMs <= DAY
     ? { timeZone: TZ, hour: '2-digit', minute: '2-digit' }
     : { timeZone: TZ, day: 'numeric', month: 'short' });
   const full = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });

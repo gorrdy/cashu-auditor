@@ -55,7 +55,7 @@ export default function LiveStatus() {
 
   const label = state === 'live' ? 'Live' : state === 'connecting' ? 'Connecting' : 'Offline';
   return (
-    <span className={`live live-${state}`} title={last ? `Last update: ${last}` : 'Updates arrive automatically'} aria-live="polite">
+    <span className={`live live-${state}`} title={last ? `Last update: ${last}` : 'Updates arrive automatically'} aria-label={`Live updates: ${label}`}>
       <i aria-hidden="true" />
       {label}
     </span>

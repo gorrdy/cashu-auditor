@@ -6,41 +6,28 @@ import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
-import { trustState } from '@/lib/eligible';
+import { latestStatuses, trustState } from '@/lib/eligible';
 import { settleDonationInvoices } from '@/lib/donate';
 import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
+import { DAY, FEE_BUFFER, MAX_SWAP, MIN_AGE_MS as DEST_MIN_AGE_MS, MIN_SWAP, OPERATOR_EXPOSURE as MAX_EXPOSURE, UNPROVEN_DEST_MAX } from '@/lib/constants';
 
-const MIN_SWAP = 10;
 const MAX_BALANCE_FRACTION = 0.1;
-const FEE_BUFFER = 12;
 const MAX_DEST_ATTEMPTS = 3;
-const MAX_SWAP = 100;
-const UNPROVEN_DEST_MAX = 5;
-const MAX_EXPOSURE = 600;
 const TARGET_PER_DAY = 10;
 const SOURCE_TRIES = 5;
-const DEST_MIN_AGE_MS = 3 * 86_400_000;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
 
 async function uptime24h(now: number) {
   const rows = await prisma.$queryRaw<{ mintId: string; total: bigint; up: bigint }[]>`
     SELECT mintId, COUNT(*) AS total, SUM(CASE WHEN status = 'online' THEN 1 ELSE 0 END) AS up
-    FROM AuditLog WHERE location = 'prague' AND timestamp >= ${now - 86_400_000} GROUP BY mintId`;
+    FROM AuditLog WHERE location = 'prague' AND timestamp >= ${now - DAY} GROUP BY mintId`;
   return new Map(rows.map(r => [r.mintId, { total: Number(r.total), up: Number(r.up) }]));
 }
 
 function bolt11Min(methods: string | null, op: 'mint' | 'melt') {
   const list = methods ? (JSON.parse(methods) as { op: string; method: string; unit: string; min?: number }[]) : [];
   return list.find(m => m.op === op && m.method === 'bolt11' && m.unit === 'sat')?.min ?? 1;
-}
-
-async function latestStatuses() {
-  const rows = await prisma.$queryRaw<{ mintId: string; status: string }[]>`
-    SELECT a.mintId, a.status FROM AuditLog a
-    JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
-      ON l.mintId = a.mintId AND l.ts = a.timestamp AND a.location = 'prague'`;
-  return new Map(rows.map(r => [r.mintId, r.status]));
 }
 
 export async function GET(request: Request) {
@@ -64,11 +51,11 @@ export async function GET(request: Request) {
     const home = homeMintUrl();
     const backoff = await loadBackoff(now);
     const trust = await trustState(now);
-    const since = new Date(now - 86_400_000);
+    const since = new Date(now - DAY);
     const [outRows, inRows, pairRows, lastRows, provenRows] = await Promise.all([
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { kind: 'swap', timestamp: { gte: since }, ...COUNTED }, _count: { _all: true } }),
       prisma.swap.groupBy({ by: ['destMintId'], where: { kind: 'swap', timestamp: { gte: since }, ...COUNTED }, _count: { _all: true } }),
-      prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(now - 7 * 86_400_000) } } }),
+      prisma.swap.groupBy({ by: ['sourceMintId', 'destMintId'], where: { kind: 'swap', timestamp: { gte: new Date(now - 7 * DAY) } } }),
       prisma.swap.groupBy({ by: ['destMintId'], _max: { timestamp: true } }),
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' } }),
     ]);

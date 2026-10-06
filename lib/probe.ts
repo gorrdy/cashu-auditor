@@ -2,10 +2,10 @@ import { request } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 import { assertPublicMintUrl } from './mintUrl';
 import { guardedLookup } from './netguard';
+import { USER_AGENT } from './site';
 
 const PROBE_TIMEOUT_MS = 8_000;
 const MAX_BODY = 1_000_000;
-const USER_AGENT = 'cashu-audit/1.0 (+https://audit.cashu.cz/methodology)';
 
 export type MintInfo = {
   name?: string;

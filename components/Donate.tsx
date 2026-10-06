@@ -114,13 +114,13 @@ function Lightning() {
 
   return (
     <div>
-      <div className="amount-grid" role="radiogroup" aria-label="Amount">
+      <div className="amount-grid" role="group" aria-label="Amount">
         {PRESETS.map(p => (
-          <button key={p} type="button" role="radio" aria-checked={!custom && amount === p} className="amount-tile" onClick={() => { setCustom(false); setAmount(p); }}>
+          <button key={p} type="button" aria-pressed={!custom && amount === p} className="amount-tile" onClick={() => { setCustom(false); setAmount(p); }}>
             <b>{p.toLocaleString('en')}</b><span>sat</span>
           </button>
         ))}
-        <button type="button" role="radio" aria-checked={custom} className="amount-tile" onClick={() => setCustom(true)}>
+        <button type="button" aria-pressed={custom} className="amount-tile" onClick={() => setCustom(true)}>
           <b>Other</b><span>amount</span>
         </button>
       </div>
@@ -207,13 +207,13 @@ export default function DonateDialog({ cashuRequest, cashuQr }: { cashuRequest: 
           Every swap moves real sats between mints and pays real Lightning fees. Donations are what the audit spends.
         </p>
         <div className="tabs" role="tablist" aria-label="Payment method">
-          <button type="button" role="tab" aria-selected={tab === 'lightning'} onClick={() => setTab('lightning')}><BoltIcon /> Lightning</button>
-          <button type="button" role="tab" aria-selected={tab === 'ecash'} onClick={() => setTab('ecash')}><CoinIcon /> Ecash</button>
+          <button type="button" role="tab" id="tab-lightning" aria-controls="panel-lightning" aria-selected={tab === 'lightning'} onClick={() => setTab('lightning')}><BoltIcon /> Lightning</button>
+          <button type="button" role="tab" id="tab-ecash" aria-controls="panel-ecash" aria-selected={tab === 'ecash'} onClick={() => setTab('ecash')}><CoinIcon /> Ecash</button>
         </div>
         {session > 0 && (
           <div key={session} style={{ marginTop: 20 }}>
-            <div hidden={tab !== 'lightning'}><Lightning /></div>
-            <div hidden={tab !== 'ecash'}><Ecash request={cashuRequest} qr={cashuQr} /></div>
+            <div role="tabpanel" id="panel-lightning" aria-labelledby="tab-lightning" hidden={tab !== 'lightning'}><Lightning /></div>
+            <div role="tabpanel" id="panel-ecash" aria-labelledby="tab-ecash" hidden={tab !== 'ecash'}><Ecash request={cashuRequest} qr={cashuQr} /></div>
           </div>
         )}
       </div>

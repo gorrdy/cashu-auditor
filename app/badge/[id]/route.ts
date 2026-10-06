@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { isMintId } from '@/lib/mintUrl';
+import { DAY } from '@/lib/constants';
 
-const DAY = 86_400_000;
 
 function width(text: string) {
   return Math.round(text.length * 6.6 + 12);

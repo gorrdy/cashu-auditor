@@ -1,6 +1,7 @@
 'use client';
 
-const HOUR = 3_600_000;
+import { HOUR } from '@/lib/constants';
+
 const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Prague', hour: '2-digit', minute: '2-digit' });
 
 function cls(v: number | null) {

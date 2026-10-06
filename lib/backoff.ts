@@ -1,8 +1,8 @@
-import { makeBlame, type BlameSwap } from './blame';
+import { BLAME_SELECT, makeBlame, type BlameSwap } from './blame';
 import { prisma } from './prisma';
 import { COUNTED_SWAP } from './counted';
+import { DAY, HOUR } from './constants';
 
-const HOUR = 3_600_000;
 export const MAX_BACKOFF_MS = 24 * HOUR;
 
 export type Backoff = { failures: number; until: number; pending: boolean; sendUntil: number; receiveUntil: number; banned: boolean };
@@ -77,8 +77,8 @@ export function computeBackoff(swaps: BlameSwap[], now = Date.now()) {
 
 export async function loadBackoff(now = Date.now()) {
   const swaps = await prisma.swap.findMany({
-    where: { AND: [{ OR: [{ timestamp: { gte: new Date(now - 7 * 86_400_000) } }, { status: 'pending' }] }, COUNTED_SWAP] },
-    select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
+    where: { AND: [{ OR: [{ timestamp: { gte: new Date(now - 7 * DAY) } }, { status: 'pending' }] }, COUNTED_SWAP] },
+    select: BLAME_SELECT,
   });
   const map = computeBackoff(swaps, now);
   const pairs = computePairBackoff(swaps, now);

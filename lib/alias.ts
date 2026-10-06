@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
+import { USER_AGENT } from './site';
 
-const HEADERS = { 'user-agent': 'cashu-audit/1.0 (+https://audit.cashu.cz/methodology)', 'content-type': 'application/json' };
+const HEADERS = { 'user-agent': USER_AGENT, 'content-type': 'application/json' };
 
 export async function sharesBackend(a: string, b: string): Promise<boolean> {
   try {

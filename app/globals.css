@@ -264,9 +264,6 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 @media (max-width: 599px) {
   table.data .c-sm { display: none; }
   table.data td, table.data th { padding: 8px 6px; font-size: 13px; }
-  .badge .badge-label { display: none; }
-  .badge { padding: 2px; }
-  .mint-cell { min-width: 0; max-width: 46vw; }
 }
 .cell-wrap { white-space: normal; overflow-wrap: anywhere; }
 .mint-cell { max-width: 240px; }
@@ -280,7 +277,7 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
   table.data .badge { padding: 2px; }
 }
 @media (max-width: 599px) {
-  .mint-cell { max-width: 38vw; }
+  .mint-cell { min-width: 0; max-width: 38vw; }
   .mint-icon { display: none; }
   .lbl-long { display: none; }
   .lbl-short { display: inline; }
@@ -407,7 +404,7 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .amount-tile b { font-size: 20px; line-height: 26px; font-weight: 600; }
 .amount-tile span { font-size: 13px; line-height: 18px; color: var(--ink-3); }
 .amount-tile:hover { border-color: var(--ink-3); }
-.amount-tile[aria-checked="true"] { border-color: var(--copper); box-shadow: inset 0 0 0 1px var(--copper); background: var(--copper-wash); }
+.amount-tile[aria-pressed="true"] { border-color: var(--copper); box-shadow: inset 0 0 0 1px var(--copper); background: var(--copper-wash); }
 .amount-input { position: relative; display: block; margin-top: 10px; }
 .amount-input .field { height: 44px; padding-right: 48px; font-size: 16px; font-variant-numeric: tabular-nums; }
 .amount-unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--ink-3); pointer-events: none; }

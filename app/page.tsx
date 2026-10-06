@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getOverview, getRecentSwaps, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
-import { GraphLegend } from '@/components/MintGraph';
+import { GraphLegend } from '@/components/GraphLegend';
 import MintNetwork from '@/components/MintNetworkLazy';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
@@ -182,10 +182,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             return (
               <details className="filter-menu">
                 <summary>Filters{count ? ` · ${count}` : ''}</summary>
-                <div className="filter-list" role="menu">
+                <div className="filter-list">
                   {options.map(o => (
-                    <Link key={o.key} role="menuitemcheckbox" aria-checked={o.on} href={o.href} scroll={false} prefetch={false}>
-                      <span className="check" aria-hidden="true">{o.on ? '✓' : ''}</span>{o.label}
+                    <Link key={o.key} href={o.href} scroll={false} prefetch={false}>
+                      <span className="check" aria-hidden="true">{o.on ? '✓' : ''}</span>{o.label}{o.on && <span className="sr-only"> (on)</span>}
                     </Link>
                   ))}
                   {count > 0 && (

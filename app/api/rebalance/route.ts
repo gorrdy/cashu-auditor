@@ -5,10 +5,11 @@ import { withWalletLock } from '@/lib/lock';
 import { homeMintUrl } from '@/lib/consolidate';
 import { transfer } from '@/lib/transfer';
 import { swappableMints, trustState, unspentBalance } from '@/lib/eligible';
-import { recentlyFailing } from '@/lib/blame';
+import { recentlyFailing, BLAME_SELECT } from '@/lib/blame';
 import { SLOW_BELOW, totalBalance } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { COUNTED_SWAP } from '@/lib/counted';
+import { DAY } from '@/lib/constants';
 
 const LOW = 250;
 const TARGET = 500;
@@ -27,8 +28,8 @@ export async function GET(request: Request) {
     const now = Date.now();
     const failing = recentlyFailing(
       await prisma.swap.findMany({
-        where: { timestamp: { gte: new Date(now - 7 * 86_400_000) }, ...COUNTED_SWAP },
-        select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true },
+        where: { timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP },
+        select: BLAME_SELECT,
       }),
       now
     );
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
 
     const unreachable = new Set(
       (await prisma.swap.findMany({
-        where: { sourceMintId: home.id, status: 'failed', stage: 'melt', timestamp: { gte: new Date(now - 86_400_000) } },
+        where: { sourceMintId: home.id, status: 'failed', stage: 'melt', timestamp: { gte: new Date(now - DAY) } },
         select: { destMintId: true },
       })).map(r => r.destMintId)
     );

@@ -69,13 +69,15 @@ const sum = (proofs: { amount: AmountLike }[]) => proofs.reduce((s, p) => s + nu
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function storeProofs(mintId: string, proofs: CashuProof[]) {
-  for (const p of proofs) {
-    await prisma.proof.upsert({
-      where: { secret: p.secret },
-      update: {},
-      create: { mintId, keysetId: p.id, amount: num(p.amount), secret: p.secret, C: p.C },
-    });
-  }
+  await prisma.$transaction(
+    proofs.map(p =>
+      prisma.proof.upsert({
+        where: { secret: p.secret },
+        update: {},
+        create: { mintId, keysetId: p.id, amount: num(p.amount), secret: p.secret, C: p.C },
+      })
+    )
+  );
 }
 
 async function releaseReserved(swapId: string) {

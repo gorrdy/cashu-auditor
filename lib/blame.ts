@@ -1,4 +1,4 @@
-const DAY = 86_400_000;
+import { DAY } from './constants';
 const ROUTE_ERROR = /no[_ ]?route|route|payment failed|failure_reason|http status|timeout after|melt state pending/i;
 
 export type BlameSwap = {
@@ -10,6 +10,8 @@ export type BlameSwap = {
   timestamp: Date;
   preimageOk?: boolean | null;
 };
+
+export const BLAME_SELECT = { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true } as const;
 
 export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * DAY) {
   const recent = swaps.filter(s => now - s.timestamp.getTime() < windowMs);
@@ -64,5 +66,5 @@ export function recentlyFailing(swaps: BlameSwap[], now = Date.now()) {
     const id = blame(s);
     if (id) lastBad.set(id, Math.max(lastBad.get(id) ?? 0, t));
   }
-  return new Set([...lastBad].filter(([id, t]) => now - t < 86_400_000 && t > (lastOk.get(id) ?? 0)).map(([id]) => id));
+  return new Set([...lastBad].filter(([id, t]) => now - t < DAY && t > (lastOk.get(id) ?? 0)).map(([id]) => id));
 }

@@ -6,9 +6,10 @@ import { fetchIcon } from '@/lib/icons';
 import { lookupNetwork } from '@/lib/netinfo';
 import { looksLikeTestMint } from '@/lib/testMint';
 import { publish } from '@/lib/events';
+import { DAY } from '@/lib/constants';
 
-const ICON_MAX_AGE_MS = 86_400_000;
-const NET_MAX_AGE_MS = 86_400_000;
+const ICON_MAX_AGE_MS = DAY;
+const NET_MAX_AGE_MS = DAY;
 
 type MintRow = Awaited<ReturnType<typeof loadMints>>[number];
 
@@ -82,44 +83,49 @@ async function audit() {
   }
 
   let events = 0;
-  for (const { mint, result } of results) {
-    if (result.info && result.spec) {
-      const data = snapshot(mint, result);
-      for (const key of TRACKED) {
-        const before = mint[key];
-        const after = data[key as keyof typeof data];
-        if (after === undefined || before === null || before === undefined || String(before) === String(after)) continue;
-        await prisma.mintEvent.create({
-          data: { mintId: mint.id, kind: key, previous: String(before).slice(0, 300), value: after === null ? null : String(after).slice(0, 300), timestamp },
+  await prisma.$transaction(
+    async tx => {
+      for (const { mint, result } of results) {
+        if (result.info && result.spec) {
+          const data = snapshot(mint, result);
+          for (const key of TRACKED) {
+            const before = mint[key];
+            const after = data[key as keyof typeof data];
+            if (after === undefined || before === null || before === undefined || String(before) === String(after)) continue;
+            await tx.mintEvent.create({
+              data: { mintId: mint.id, kind: key, previous: String(before).slice(0, 300), value: after === null ? null : String(after).slice(0, 300), timestamp },
+            });
+            events++;
+          }
+          await tx.mint.update({ where: { id: mint.id }, data: { ...data, ...(mint.offlineSince ? { offlineSince: null } : {}) } });
+        } else if (result.cert) {
+          await tx.mint.update({
+            where: { id: mint.id },
+            data: { tlsIssuer: result.cert.issuer, tlsExpiresAt: result.cert.validTo ? new Date(result.cert.validTo) : null },
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            mintId: mint.id,
+            location: 'prague',
+            status: result.status,
+            latency: result.latency,
+            keysetsMs: result.keysetsMs,
+            httpStatus: result.httpStatus,
+            dnsMs: result.timings?.dnsMs,
+            connectMs: result.timings?.connectMs,
+            tlsMs: result.timings?.tlsMs,
+            ttfbMs: result.timings?.ttfbMs,
+            clockSkewMs: result.clockSkewMs,
+            version: typeof result.info?.version === 'string' ? result.info.version.slice(0, 60) : null,
+            error: result.error?.slice(0, 300),
+            timestamp,
+          },
         });
-        events++;
       }
-      await prisma.mint.update({ where: { id: mint.id }, data: { ...data, ...(mint.offlineSince ? { offlineSince: null } : {}) } });
-    } else if (result.cert) {
-      await prisma.mint.update({
-        where: { id: mint.id },
-        data: { tlsIssuer: result.cert.issuer, tlsExpiresAt: result.cert.validTo ? new Date(result.cert.validTo) : null },
-      });
-    }
-    await prisma.auditLog.create({
-      data: {
-        mintId: mint.id,
-        location: 'prague',
-        status: result.status,
-        latency: result.latency,
-        keysetsMs: result.keysetsMs,
-        httpStatus: result.httpStatus,
-        dnsMs: result.timings?.dnsMs,
-        connectMs: result.timings?.connectMs,
-        tlsMs: result.timings?.tlsMs,
-        ttfbMs: result.timings?.ttfbMs,
-        clockSkewMs: result.clockSkewMs,
-        version: typeof result.info?.version === 'string' ? result.info.version.slice(0, 60) : null,
-        error: result.error?.slice(0, 300),
-        timestamp,
-      },
-    });
-  }
+    },
+    { timeout: 30_000 }
+  );
 
   const staleNet = results.filter(({ mint, result }) =>
     result.status !== 'offline' && (!mint.netCheckedAt || timestamp.getTime() - mint.netCheckedAt.getTime() > NET_MAX_AGE_MS)

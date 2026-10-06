@@ -8,6 +8,7 @@ import LiveStatus from '@/components/LiveStatus';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
+import { SITE_URL } from '@/lib/site';
 
 const plexSans = IBM_Plex_Sans({
   variable: '--font-plex-sans',
@@ -22,7 +23,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://audit.cashu.cz'),
+  metadataBase: new URL(SITE_URL),
   title: { default: 'Cashu Audit', template: '%s · Cashu Audit' },
   description: 'Independent proof that Cashu mints pay. Uptime, latency and real Lightning swaps between public Cashu mints.',
 };

@@ -5,9 +5,8 @@ import { homeMintUrl } from '@/lib/consolidate';
 import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { swappableMints, trustState, unspentBalance } from '@/lib/eligible';
 import { loadBackoff } from '@/lib/backoff';
+import { FEE_BUFFER, OPERATOR_EXPOSURE as MAX_EXPOSURE } from '@/lib/constants';
 
-const FEE_BUFFER = 15;
-const MAX_EXPOSURE = 600;
 
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -2,10 +2,10 @@ import type { CheckSummary } from '@/lib/stats-extra';
 import type { PaymentMethod } from '@/lib/probe';
 import StateBadge, { StateIcon } from './StateBadge';
 import { fmtDate, fmtDateTime, fmtMs, fmtSat } from './format';
+import { DAY } from '@/lib/constants';
 
 type Timing = { dns: number | null; connect: number | null; tls: number | null; ttfb: number | null; samples: number };
 
-const DAY = 86_400_000;
 
 export function fmtPpk(ppk: number | null) {
   if (ppk == null) return '—';

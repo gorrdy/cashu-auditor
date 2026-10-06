@@ -1,7 +1,7 @@
 import { prisma } from './prisma';
 import { dayKey, getOverview } from './stats';
+import { DAY, HOUR } from './constants';
 
-const HOUR = 3_600_000;
 export const RAW_RETENTION_DAYS = 35;
 
 function percentile(sorted: number[], p: number) {
@@ -34,22 +34,24 @@ export async function rollupHours(now = Date.now()) {
       groups.set(key, g);
     }
     const hour = new Date(start);
-    for (const g of groups.values()) {
-      g.lat.sort((a, b) => a - b);
-      const data = { checks: g.checks, up: g.up, p50: percentile(g.lat, 0.5), p95: percentile(g.lat, 0.95) };
-      await prisma.auditHourly.upsert({
-        where: { mintId_location_hour: { mintId: g.mintId, location: g.location, hour } },
-        update: data,
-        create: { mintId: g.mintId, location: g.location, hour, ...data },
-      });
-    }
+    await prisma.$transaction(
+      [...groups.values()].map(g => {
+        g.lat.sort((a, b) => a - b);
+        const data = { checks: g.checks, up: g.up, p50: percentile(g.lat, 0.5), p95: percentile(g.lat, 0.95) };
+        return prisma.auditHourly.upsert({
+          where: { mintId_location_hour: { mintId: g.mintId, location: g.location, hour } },
+          update: data,
+          create: { mintId: g.mintId, location: g.location, hour, ...data },
+        });
+      })
+    );
     hours++;
   }
   return { hours };
 }
 
 export async function pruneRaw(now = Date.now()) {
-  const cutoff = new Date(now - RAW_RETENTION_DAYS * 86_400_000);
+  const cutoff = new Date(now - RAW_RETENTION_DAYS * DAY);
   const rolled = await prisma.auditHourly.findFirst({ where: { hour: { lt: cutoff } }, select: { hour: true } });
   const oldest = await prisma.auditLog.findFirst({ where: { timestamp: { lt: cutoff } }, select: { timestamp: true } });
   if (oldest && !rolled) return { deleted: 0, skipped: 'old rows not rolled up yet' };
@@ -61,10 +63,12 @@ export async function pruneRaw(now = Date.now()) {
 export async function snapshotScores(now = Date.now()) {
   const { mints } = await getOverview(now);
   const day = dayKey(now);
-  for (const m of mints) {
-    const swaps = m.scoreParts.find(p => p.key === 'swaps')?.score ?? null;
-    const data = { score: m.score, uptime: m.uptime30d, latency: m.avgLatency24h, swapRate: swaps };
-    await prisma.scoreDaily.upsert({ where: { mintId_day: { mintId: m.id, day } }, update: data, create: { mintId: m.id, day, ...data } });
-  }
+  await prisma.$transaction(
+    mints.map(m => {
+      const swaps = m.scoreParts.find(p => p.key === 'swaps')?.score ?? null;
+      const data = { score: m.score, uptime: m.uptime30d, latency: m.avgLatency24h, swapRate: swaps };
+      return prisma.scoreDaily.upsert({ where: { mintId_day: { mintId: m.id, day } }, update: data, create: { mintId: m.id, day, ...data } });
+    })
+  );
   return { mints: mints.length, day };
 }
