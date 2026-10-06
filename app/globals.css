@@ -712,3 +712,5 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
   .cmp[data-cols="5"] .cmp-heads { gap: 6px; }
   .cmp[data-cols="5"] .cmp-row { gap: 4px 6px; }
 }
+.show-more { display: flex; justify-content: center; margin-top: 16px; }
+.show-more:empty { display: none; }

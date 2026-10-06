@@ -18,6 +18,7 @@ import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf,
 export const revalidate = 60;
 
 const RUNWAY_SCALE_DAYS = 60;
+const TOP_MINTS = 6;
 const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 1, unknown: 2, error: 3 };
 
 const COLUMNS = {
@@ -69,20 +70,20 @@ const FILTERS = [
   { key: 'onion', label: 'Onion' },
 ] as const;
 
-type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string; q?: string; view?: string };
+type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string; q?: string; view?: string; all?: string };
 
 function filterQuery(p: Params, change: Partial<Record<keyof Params, string | undefined>> = {}, keepSort = true) {
   const q = new URLSearchParams();
   const merged = { ...p, ...change };
-  for (const k of ['q', 'online', 'free', 'ws', 'onion', 'unit', 'view'] as const) if (merged[k]) q.set(k, merged[k]!);
+  for (const k of ['q', 'online', 'free', 'ws', 'onion', 'unit', 'view', 'all'] as const) if (merged[k]) q.set(k, merged[k]!);
   if (keepSort) for (const k of ['sort', 'dir'] as const) if (merged[k]) q.set(k, merged[k]!);
   return q.toString();
 }
 
 export default async function Overview({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
-  const dir = params.dir === 'desc' ? 'desc' : 'asc';
+  const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'score';
+  const dir = params.dir === 'desc' || params.dir === 'asc' ? params.dir : SORT_FIRST[sort];
   const view = params.view === 'table' ? 'table' : 'cards';
 
   const [{ mints, totals, swapsPerDay, now }, recent] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 })]);
@@ -107,10 +108,20 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     (!params.unit || m.units.includes(params.unit))
   );
   const query = filterQuery(params, {}, false);
-  const rows = [...filtered].sort((a, b) => {
-    const c = compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b);
-    return dir === 'asc' ? c : -c;
-  });
+  const sorted = [...filtered].sort((a, b) =>
+    (dir === 'asc' ? 1 : -1) * compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b)
+  );
+  const showAll = params.all === '1' || terms.length > 0 || sorted.length <= TOP_MINTS + 2;
+  const rows = showAll ? sorted : sorted.slice(0, TOP_MINTS);
+  const moreLink = (
+    <div className="show-more">
+      {showAll && params.all === '1' ? (
+        <Link href={`/?${filterQuery(params, { all: undefined })}#mints`} scroll={false} prefetch={false} className="btn secondary">Show top {TOP_MINTS}</Link>
+      ) : !showAll ? (
+        <Link href={`/?${filterQuery(params, { all: '1' })}`} scroll={false} prefetch={false} className="btn secondary">Show all {sorted.length} mints</Link>
+      ) : null}
+    </div>
+  );
 
   const runway = totals.runwayDays;
   const runwayLevel = runway == null ? 'good' : runway < 10 ? 'critical' : runway < 30 ? 'warning' : 'good';
@@ -237,7 +248,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             <Link href={`/?${filterQuery(params, { view: undefined })}`} aria-current={view === 'cards' ? 'page' : undefined} scroll={false} prefetch={false}>Cards</Link>
             <Link href={`/?${filterQuery(params, { view: 'table' })}`} aria-current={view === 'table' ? 'page' : undefined} scroll={false} prefetch={false}>Table</Link>
           </div>
-          <span className="small muted">{rows.length} of {allActive.length} mints{terms.length && archivedAll.length ? ` · ${archived.length} of ${archivedAll.length} long offline` : ''}</span>
+          <span className="small muted">{sorted.length} of {allActive.length} mints{terms.length && archivedAll.length ? ` · ${archived.length} of ${archivedAll.length} long offline` : ''}</span>
         </nav>
         {view === 'cards' ? (
           <ul className="mint-cards">
@@ -331,6 +342,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           </table>
         </div>
         )}
+        {moreLink}
         {archived.length > 0 && (
           <details className="table-view archive" open={terms.length > 0}>
             <summary>Offline for more than {LONG_OFFLINE_DAYS} days ({archived.length}{terms.length ? ` of ${archivedAll.length}` : ''})</summary>
