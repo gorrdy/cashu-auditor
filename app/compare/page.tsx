@@ -73,7 +73,7 @@ function bestIndex(row: Row, cols: Column[]) {
 function quickPicks(mints: Overview[]) {
   const pool = mints.filter(m => !m.longOffline && !m.isTest && m.state !== 'error');
   const top = (key: (m: Overview) => number | null, dir: 1 | -1) =>
-    [...pool].filter(m => key(m) != null).sort((a, b) => dir * (key(a)! - key(b)!)).slice(0, 3).map(m => m.id);
+    [...pool].filter(m => key(m) != null).sort((a, b) => dir * (key(a)! - key(b)!)).slice(0, MAX_MINTS).map(m => m.id);
   return [
     { label: 'Highest audit score', ids: top(m => m.score, -1) },
     { label: 'Fastest payouts', ids: top(m => m.payoutMs, 1) },

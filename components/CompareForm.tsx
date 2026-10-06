@@ -21,7 +21,7 @@ export default function CompareForm({ options, selected, max, presets }: {
         <div className="cmp-presets" role="group" aria-label="Presets">
           <span className="small soft">Quick picks</span>
           {presets.map(p => (
-            <Link key={p.label} href={`/compare?${p.ids.map(id => `m=${id}`).join('&')}`} prefetch={false} className="cmp-preset">{p.label}</Link>
+            <Link key={p.label} href={`/compare?${p.ids.slice(0, count).map(id => `m=${id}`).join('&')}`} prefetch={false} className="cmp-preset">{p.label}</Link>
           ))}
         </div>
       )}
