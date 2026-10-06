@@ -69,12 +69,12 @@ const FILTERS = [
   { key: 'onion', label: 'Onion' },
 ] as const;
 
-type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string; q?: string };
+type Params = { sort?: string; dir?: string; online?: string; free?: string; ws?: string; onion?: string; unit?: string; q?: string; view?: string };
 
 function filterQuery(p: Params, change: Partial<Record<keyof Params, string | undefined>> = {}, keepSort = true) {
   const q = new URLSearchParams();
   const merged = { ...p, ...change };
-  for (const k of ['q', 'online', 'free', 'ws', 'onion', 'unit'] as const) if (merged[k]) q.set(k, merged[k]!);
+  for (const k of ['q', 'online', 'free', 'ws', 'onion', 'unit', 'view'] as const) if (merged[k]) q.set(k, merged[k]!);
   if (keepSort) for (const k of ['sort', 'dir'] as const) if (merged[k]) q.set(k, merged[k]!);
   return q.toString();
 }
@@ -83,6 +83,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const params = await searchParams;
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
+  const view = params.view === 'table' ? 'table' : 'cards';
 
   const [{ mints, totals, swapsPerDay, now }, recent] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 })]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
@@ -219,7 +220,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               </details>
             );
           })()}
-          <details className="filter-menu sort-menu">
+          <details className={`filter-menu sort-menu${view === 'cards' ? ' always' : ''}`}>
             <summary>Sort: {COLUMNS[sort][0]}</summary>
             <div className="filter-list">
               {(Object.keys(COLUMNS) as SortKey[]).map(k => {
@@ -232,8 +233,51 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               })}
             </div>
           </details>
+          <div className="segmented view-switch" role="group" aria-label="View">
+            <Link href={`/?${filterQuery(params, { view: undefined })}`} aria-current={view === 'cards' ? 'page' : undefined} scroll={false} prefetch={false}>Cards</Link>
+            <Link href={`/?${filterQuery(params, { view: 'table' })}`} aria-current={view === 'table' ? 'page' : undefined} scroll={false} prefetch={false}>Table</Link>
+          </div>
           <span className="small muted">{rows.length} of {allActive.length} mints{terms.length && archivedAll.length ? ` · ${archived.length} of ${archivedAll.length} long offline` : ''}</span>
         </nav>
+        {view === 'cards' ? (
+          <ul className="mint-cards">
+            {rows.map(m => (
+              <li key={m.id} className="mint-card">
+                <Link className="mint-card-link" href={`/mint/${m.id}`} prefetch={false} aria-label={mintLabel(m)} />
+                <div className="mc-head">
+                  <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} size={40} />
+                  <div className="mc-name">
+                    <span className="mc-title" title={mintLabel(m)}>{mintLabel(m)}</span>
+                    <span className="url" title={m.url}>{hostOf(m.url)}</span>
+                  </div>
+                  <span className="mc-state"><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></span>
+                </div>
+                {(m.versionStatus?.outdated || m.isTest || m.aliases.length > 0) && (
+                  <div className="mc-tags">
+                    {m.versionStatus?.outdated && <span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span>}
+                    {m.isTest && <span className="mc-tag">test mint</span>}
+                    {m.aliases.length > 0 && <span className="mc-tag" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</span>}
+                  </div>
+                )}
+                <div className="mc-strip">
+                  <HourStrip values={m.strip.map(v => (v == null ? null : Math.round(v * 100) / 100))} firstHour={currentHour - 23} label={`Hourly availability of ${mintLabel(m)} in the last 24 hours`} />
+                </div>
+                <dl className="mc-metrics">
+                  <div title={m.scoreParts.map(p => `${p.label}: ${p.score == null ? '—' : Math.round(p.score)} (${p.detail})`).join('\n')}><dt>Score</dt><dd>{m.score ?? '—'}</dd></div>
+                  <div title={`30 d ${fmtPct(m.uptime30d)} · 7 d ${fmtPct(m.uptime7d)} · 24 h ${fmtPct(m.uptime24h)}`}><dt>Uptime</dt><dd>{fmtPct(m.uptime30d)}</dd></div>
+                  <div><dt>Latency</dt><dd>{fmtMs(m.avgLatency24h)}</dd></div>
+                  <div title="Median time of a successful payout from this mint, 30 days"><dt>Payout</dt><dd>{m.payoutMs == null ? '—' : fmtMs(m.payoutMs)}</dd></div>
+                </dl>
+                <p className="mc-foot">
+                  <span>{m.balance ? `${fmtSat(m.balance)} held` : 'No balance'}</span>
+                  <span>{m.errors ? `${m.errors} error${m.errors === 1 ? '' : 's'}` : 'No errors'}</span>
+                  {m.version && <span className="mono" title={m.version}>{m.version}</span>}
+                </p>
+              </li>
+            ))}
+            {rows.length === 0 && <li className="mint-card mc-empty muted">{mints.length ? (archived.length ? 'No active mint matches. See long offline mints below.' : 'No mint matches these filters.') : 'No mints tracked yet.'}</li>}
+          </ul>
+        ) : (
         <div className="table-wrap mints-wrap">
           <table className="data mints-table">
             <thead>
@@ -286,6 +330,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             </tbody>
           </table>
         </div>
+        )}
         {archived.length > 0 && (
           <details className="table-view archive" open={terms.length > 0}>
             <summary>Offline for more than {LONG_OFFLINE_DAYS} days ({archived.length}{terms.length ? ` of ${archivedAll.length}` : ''})</summary>

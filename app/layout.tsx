@@ -5,6 +5,8 @@ import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
 import Mark from '@/components/Mark';
 import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
+import MobileMenu from '@/components/MobileMenu';
+import MenuCloser from '@/components/MenuCloser';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
@@ -48,6 +50,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
+              <MobileMenu />
             </nav>
           </div>
         </header>
@@ -66,6 +69,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </div>
         </footer>
         <HoverTip />
+        <MenuCloser />
         <DonateDialog cashuRequest={cashu.request} cashuQr={cashu.qr} />
       </body>
     </html>

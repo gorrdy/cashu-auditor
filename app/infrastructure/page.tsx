@@ -29,14 +29,14 @@ function BarList({ title, sub, items, total, unit = 'mints', limit = 8 }: { titl
       <h2 className="h2">{title}</h2>
       <p className="small soft" style={{ margin: '0 0 16px' }}>{sub}</p>
       {shown.length === 0 ? <p className="small muted" style={{ margin: 0 }}>No data yet.</p> : (
-        <ul className="bars">
+        <ul className="hbars">
           {shown.map(b => (
             <li key={b.key}>
-              <div className="bars-head">
-                <span className="bars-label" title={b.key}>{b.key}</span>
-                <span className="bars-value">{b.mints.length} {unit} · {pct(b.mints.length, total)} %</span>
+              <div className="hbars-head">
+                <span className="hbars-label" title={b.key}>{b.key}</span>
+                <span className="hbars-value">{b.mints.length} {unit} · {pct(b.mints.length, total)} %</span>
               </div>
-              <div className="bars-track"><i style={{ width: `${Math.max(2, pct(b.mints.length, total))}%` }} /></div>
+              <div className="hbars-track"><i style={{ width: `${Math.max(2, pct(b.mints.length, total))}%` }} /></div>
               <MintChips mints={b.mints} />
             </li>
           ))}
@@ -123,14 +123,14 @@ export default async function Infrastructure() {
           {d.software.map(s => (
             <div className="card" key={s.impl}>
               <p className="infra-node"><strong>{s.impl}</strong><span className="small soft">{s.count} mints</span></p>
-              <ul className="bars">
+              <ul className="hbars">
                 {s.versions.map(v => (
                   <li key={v.version}>
-                    <div className="bars-head">
-                      <span className="bars-label mono">{v.version}{v.outdated && <span className="outdated" style={{ marginLeft: 8 }}>outdated</span>}</span>
-                      <span className="bars-value">{v.mints.length}</span>
+                    <div className="hbars-head">
+                      <span className="hbars-label mono">{v.version}{v.outdated && <span className="outdated" style={{ marginLeft: 8 }}>outdated</span>}</span>
+                      <span className="hbars-value">{v.mints.length}</span>
                     </div>
-                    <div className="bars-track"><i className={v.outdated ? 'is-old' : undefined} style={{ width: `${Math.max(3, pct(v.mints.length, s.count))}%` }} /></div>
+                    <div className="hbars-track"><i className={v.outdated ? 'is-old' : undefined} style={{ width: `${Math.max(3, pct(v.mints.length, s.count))}%` }} /></div>
                   </li>
                 ))}
               </ul>

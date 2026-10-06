@@ -96,6 +96,19 @@ for (const path of pages) {
   await page.close();
 }
 
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  await page.click('.menu-toggle');
+  const menu = await page.waitForSelector('.menu-panel a[href="/infrastructure"]', { timeout: 5000 }).then(() => true).catch(() => false);
+  check(menu, 'mobile menu opens');
+  await page.click('.menu-toggle');
+  await page.click('.filter-menu:not(.sort-menu) summary');
+  await page.mouse.click(200, 700);
+  check(!(await page.$('details.filter-menu[open]')), 'filter menu closes on outside click');
+  await page.close();
+}
+
 await browser.close();
 console.log(failures.length ? `\n${failures.length} smoke check(s) failed` : '\nall smoke checks passed');
 process.exit(failures.length ? 1 : 0);
