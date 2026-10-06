@@ -95,6 +95,11 @@ async function settleMelt(swap: Swap, change: CashuProof[], preimage?: unknown) 
 
 type MeltOutcome = 'paid' | 'unpaid' | 'pending';
 
+function unpaidError(error?: string | null) {
+  if (!error) return 'Melt not paid';
+  return /^(Melt state PENDING|Timeout after)/.test(error) ? `Payment failed after ${error.replace(/^Melt state /, '').toLowerCase()}` : error;
+}
+
 async function resolveMelt(wallet: Wallet, swap: Swap): Promise<{ outcome: MeltOutcome; swap: Swap }> {
   let state: string;
   let preimage: unknown;
@@ -343,7 +348,7 @@ export async function transfer(opts: {
     ({ outcome, swap } = await resolveMelt(sourceWallet, swap));
   }
 
-  if (outcome === 'unpaid') return { ...(await finish(swap, 'failed', meltError ?? 'Melt not paid')), fundsMoved: false };
+  if (outcome === 'unpaid') return { ...(await finish(swap, 'failed', unpaidError(meltError))), fundsMoved: false };
   if (outcome === 'pending' && (await destConfirmsPayment(dest.url, swap))) {
     swap = await settleMelt(swap, []);
     outcome = 'paid';
@@ -370,7 +375,7 @@ export async function recoverPendingSwaps() {
         const resolved = await resolveMelt(wallet, swap);
         swap = resolved.swap;
         if (resolved.outcome === 'unpaid') {
-          results.push(await finish(swap, 'failed', swap.error ?? 'Melt not paid'));
+          results.push(await finish(swap, 'failed', unpaidError(swap.error)));
           continue;
         }
         if (resolved.outcome === 'pending') {

@@ -19,6 +19,7 @@ export default function Methodology() {
         <li>A check counts as <strong>up</strong> when <span className="mono">/v1/info</span> returns a valid Cashu info document within 8 seconds.</li>
         <li>If info answers but there is no active sat keyset, the mint is <strong>degraded</strong>: reachable, but unable to issue ecash.</li>
         <li>Response time is measured for <span className="mono">/v1/info</span> only and includes TLS and the network path from Prague.</li>
+        <li>A mint that was up and fails a check is probed once more 2 seconds later before it is recorded as offline, so a single dropped connection is not counted as an outage.</li>
         <li>If almost every mint fails at once, the auditor first confirms its own internet connection and discards the round when it is offline.</li>
       </ul>
 
@@ -34,7 +35,7 @@ export default function Methodology() {
         <li>Proofs are locked before paying. If a payment times out, the auditor asks the mint for the quote state later and settles or releases the proofs. A swap is never paid twice.</li>
         <li>A failure is attributed only where the evidence points. A refused quote or failed minting counts against the destination, a refused melt quote or a payment stuck in pending against the source.</li>
         <li>Attempts stopped by the auditor&apos;s own checks before anything is sent (too little balance, an amount outside the mint&apos;s limits) are not swaps and are left out of every statistic.</li>
-        <li>A Lightning routing failure can sit anywhere on the path, so by default it counts against neither mint. It is attributed to the destination only after payments to it failed from at least two different mints with no successful payment in 7 days, and to the source likewise for payments to two different destinations.</li>
+        <li>A Lightning routing failure can sit anywhere on the path, so by default it counts against neither mint. A payment that timed out or hung as pending and then failed is treated the same way. It is attributed to the destination only after payments to it failed from at least two different mints with no successful payment in 7 days, and to the source likewise for payments to two different destinations.</li>
         <li>After a failure attributed to a mint it is left out of swaps for 1 hour, doubling with every further failure in a row up to 24 hours. Any successful swap resets it. A mint with a payout still pending is not used as a source until it resolves.</li>
         <li>A routing failure between two specific mints pauses only that pair, for 1 hour doubling up to 24 hours, so other mints keep being tried.</li>
         <li>Mints that describe themselves as test mints in their name, URL or description may issue unbacked ecash. They are checked for availability, never receive swaps, and any balance held there is paid out and not counted in the audit balance.</li>

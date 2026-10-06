@@ -67,6 +67,14 @@ async function audit() {
   const mints = await loadMints();
   const timestamp = new Date();
   const results = await mapLimit(mints, 8, async mint => ({ mint, result: await probeMint(mint.url) }));
+  const retry = results.filter(r => r.result.status === 'offline' && !r.mint.offlineSince);
+  if (retry.length && retry.length < results.length / 2) {
+    await new Promise(r => setTimeout(r, 2000));
+    await mapLimit(retry, 8, async r => {
+      const again = await probeMint(r.mint.url);
+      if (again.status !== 'offline') r.result = again;
+    });
+  }
 
   const up = results.filter(r => r.result.status !== 'offline').length;
   if (mints.length >= 5 && up / mints.length < 0.2 && !(await hasInternet())) {

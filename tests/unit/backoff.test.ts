@@ -51,7 +51,7 @@ describe('computePairBackoff', () => {
 
 describe('role-aware backoff', () => {
   it('a successful receipt does not clear payout failures', () => {
-    const swaps = [s('L', 'X', 'failed', 'melt', 0.5, 'Melt state PENDING'), s('Y', 'L', 'success', null, 0.25)];
+    const swaps = [s('L', 'X', 'failed', 'melt', 0.5, 'Token already spent'), s('Y', 'L', 'success', null, 0.25)];
     const b = computeBackoff(swaps, now).get('L')!;
     expect(b.sendUntil).toBeGreaterThan(now);
     expect(b.receiveUntil).toBe(0);

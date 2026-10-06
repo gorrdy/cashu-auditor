@@ -1,5 +1,5 @@
 const DAY = 86_400_000;
-const ROUTE_ERROR = /no[_ ]?route|route|payment failed|failure_reason|http status/i;
+const ROUTE_ERROR = /no[_ ]?route|route|payment failed|failure_reason|http status|timeout after|melt state pending/i;
 
 export type BlameSwap = {
   status: string;

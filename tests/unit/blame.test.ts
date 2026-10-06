@@ -19,6 +19,12 @@ describe('makeBlame', () => {
     const x = s('A', 'B', 'failed', 'melt', 'Lightning payment failed: FAILURE_REASON_NO_ROUTE.');
     expect(makeBlame([x], now)(x)).toBeNull();
   });
+  it('treats a melt that timed out or hung and then failed as a routing failure', () => {
+    for (const error of ['Timeout after 60s', 'Melt state PENDING', 'Payment failed after pending']) {
+      const x = s('A', 'B', 'failed', 'melt', error);
+      expect(makeBlame([x], now)(x)).toBeNull();
+    }
+  });
   it('blames a destination that fails to receive from two sources', () => {
     const a = s('A', 'D', 'failed', 'melt', 'no_route');
     const b = s('C', 'D', 'failed', 'melt', 'Payment failed');
