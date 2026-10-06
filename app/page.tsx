@@ -122,7 +122,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <p className="eyebrow">Cashu mint audit</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginTop: 8 }}>
           <div style={{ maxWidth: 640 }}>
-            <h1 className="h1">Do Cashu mints actually pay?</h1>
+            <h1 className="h1 hero-title">Do Cashu mints <span className="h1-accent">actually pay?</span></h1>
             <p className="soft" style={{ margin: '10px 0 0' }}>
               Every 5 minutes we check each mint&apos;s API. Several times a day we move real sats between mints over
               Lightning and record what happened. No ratings, only measurements.

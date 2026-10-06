@@ -40,9 +40,11 @@ for (const [path, status] of [['/api/run-swap', 401], ['/api/status', 401], ['/a
 const browser = await chromium.launch({ executablePath: findChromium(), args: ['--no-sandbox'] });
 const pages = ['/', '/?q=cashu', '/methodology', `/compare?${compareIds}`, ...(mintId ? [`/mint/${mintId}`] : [])];
 
-for (const path of pages) {
+for (const design of ['classic', 'modern']) for (const path of pages) {
   for (const width of WIDTHS) {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const ctx = await browser.newContext({ viewport: { width, height: 900 } });
+    await ctx.addCookies([{ name: 'design', value: design, url: BASE }]);
+    const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('console', m => m.type() === 'error' && errors.push(m.text()));
@@ -53,9 +55,9 @@ for (const path of pages) {
       page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       tables: [...document.querySelectorAll('.table-wrap')].filter(t => t.scrollWidth - t.clientWidth > 0).length,
     }));
-    check(res?.status() === 200 && errors.length === 0 && over.page <= 0 && over.tables === 0, `${path} @${width}`,
+    check(res?.status() === 200 && errors.length === 0 && over.page <= 0 && over.tables === 0, `${design} ${path} @${width}`,
       [res?.status() !== 200 ? `status ${res?.status()}` : '', errors[0] ?? '', over.page > 0 ? `page +${over.page}px` : '', over.tables ? `${over.tables} tables overflow` : ''].filter(Boolean).join(', '));
-    await page.close();
+    await ctx.close();
   }
 }
 
