@@ -208,3 +208,15 @@ model ScoreDaily {
 
   @@id([mintId, day])
 }
+
+model DonationInvoice {
+  id        String   @id @default(cuid())
+  quoteId   String   @unique
+  amount    Int
+  request   String
+  status    String   @default("unpaid")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+}

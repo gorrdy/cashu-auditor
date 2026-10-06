@@ -34,11 +34,13 @@ export default function LatencyChart({ points, bucketMs, spanMs, secondary }: { 
     : { timeZone: TZ, day: 'numeric', month: 'short' });
   const full = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-  const max = niceMax(Math.max(0, ...points.map(p => p.p95 ?? 0), ...(secondary ?? []).map(v => v ?? 0)) * 1.05);
+  const highs = [...points.map(p => p.p95 ?? 0), ...(secondary ?? []).map(v => v ?? 0)].filter(v => v > 0).sort((a, b) => a - b);
+  const typical = highs.length ? highs[Math.floor((highs.length - 1) * 0.97)] : 0;
+  const max = niceMax(Math.max(typical, ...points.map(p => p.p50 ?? 0)) * 1.1);
   const innerW = width - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const x = (i: number) => PAD.left + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
-  const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
+  const y = (v: number) => PAD.top + innerH - (Math.min(v, max) / max) * innerH;
 
   const segments: { i: number; p: LatencyPoint }[][] = [];
   points.forEach((p, i) => {

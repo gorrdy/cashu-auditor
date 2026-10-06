@@ -270,7 +270,7 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 }
 .cell-wrap { white-space: normal; overflow-wrap: anywhere; }
 .mint-cell { max-width: 240px; }
-.cell-clip { display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.cell-clip { display: inline-block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .lbl-short { display: none; }
 @media (max-width: 767px) {
   .mint-cell { max-width: 170px; }
@@ -359,3 +359,18 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
   table.data.compare-table td, table.data.compare-table th { overflow-wrap: anywhere; white-space: normal; }
   .compare-table .badge { white-space: normal; }
 }
+.donate-pay { display: flex; flex-direction: column; align-items: stretch; }
+.qr-link { align-self: center; display: block; }
+.qr { width: 232px; max-width: 100%; aspect-ratio: 1; padding: 12px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; }
+.qr svg { display: block; width: 100%; height: 100%; }
+.amount-chip { height: 30px; padding: 0 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.amount-chip[aria-pressed="true"] { border-color: var(--copper); color: var(--copper-ink); background: var(--copper-wash); }
+.trend { padding-left: 32px; margin-top: 16px; }
+.trend-plot { position: relative; height: 120px; margin: 8px 6px 0 0; }
+.trend-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.trend-y { position: absolute; left: -32px; width: 24px; text-align: right; transform: translateY(-50%); font-size: 11px; line-height: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.trend-dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--series-1); border: 2px solid var(--surface); transform: translate(-50%, -50%); cursor: default; }
+.trend-dot::after { content: ""; position: absolute; inset: -8px; }
+.trend-x { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; line-height: 14px; color: var(--ink-3); }
+.mint-mono { display: inline-flex; align-items: center; justify-content: center; font-weight: 600; line-height: 1; color: var(--copper-ink); background: var(--copper-wash); border-color: transparent; }
+.nowrap { white-space: nowrap; }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { addMint, donateToken, type FormResult } from '@/app/actions';
+import { addMint, type FormResult } from '@/app/actions';
 import { StateIcon } from './StateBadge';
 
 function Message({ state }: { state: FormResult }) {
@@ -11,24 +11,6 @@ function Message({ state }: { state: FormResult }) {
       <span style={{ marginTop: 2 }}><StateIcon kind={state.error ? 'failed' : 'ok'} /></span>
       <span>{state.error ?? state.ok}</span>
     </p>
-  );
-}
-
-export function DonateForm() {
-  const [state, action, pending] = useActionState(donateToken, null);
-  return (
-    <form action={action} className="card">
-      <h2 className="h2">Fund the audit</h2>
-      <p className="soft small" style={{ margin: '4px 0 14px' }}>
-        Swaps are paid from donated ecash. Paste a sat token from any mint. It is redeemed immediately.
-      </p>
-      <label className="sr-only" htmlFor="token">Cashu token</label>
-      <textarea id="token" name="token" className="field" placeholder="cashuB…" required rows={3} />
-      <div style={{ marginTop: 12 }}>
-        <button className="btn" type="submit" disabled={pending}>{pending ? 'Redeeming…' : 'Donate token'}</button>
-      </div>
-      <Message state={state} />
-    </form>
   );
 }
 

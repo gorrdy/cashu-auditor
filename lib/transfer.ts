@@ -68,7 +68,7 @@ const toCashu = (p: StoredProof): ProofLike => ({ id: p.keysetId, amount: p.amou
 const sum = (proofs: { amount: AmountLike }[]) => proofs.reduce((s, p) => s + num(p.amount), 0);
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-async function storeProofs(mintId: string, proofs: CashuProof[]) {
+export async function storeProofs(mintId: string, proofs: CashuProof[]) {
   for (const p of proofs) {
     await prisma.proof.upsert({
       where: { secret: p.secret },

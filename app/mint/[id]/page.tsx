@@ -51,7 +51,7 @@ export default async function MintPage({ params, searchParams }: Props) {
   const downMs = d.incidents.reduce((sum, i) => sum + ((i.end ?? now) - Math.max(i.start, now - r.ms)), 0);
   const observedMs = d.firstAuditAt ? now - Math.max(d.firstAuditAt, now - r.ms) : 0;
   const mttr = closed.length ? closed.reduce((sum, i) => sum + (i.end! - i.start), 0) / closed.length : null;
-  const mtbf = d.incidents.length && observedMs ? (observedMs - downMs) / d.incidents.length : null;
+  const mtbf = d.incidents.length && observedMs && observedMs - downMs >= 3_600_000 ? (observedMs - downMs) / d.incidents.length : null;
   const ongoing = d.incidents.some(i => i.end === null);
   const lastEnd = closed.length ? Math.max(...closed.map(i => i.end!)) : null;
   const sd = x.swapDetail;
@@ -63,7 +63,7 @@ export default async function MintPage({ params, searchParams }: Props) {
 
       <section style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 12 }}>
         <div style={{ display: 'flex', gap: 16, minWidth: 0 }}>
-          <MintIcon id={mint.id} hash={mint.iconHash} size={56} />
+          <MintIcon id={mint.id} hash={mint.iconHash} label={mint.name ?? mint.url} size={56} />
           <div style={{ minWidth: 0 }}>
             <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}</p>
             <h1 className="h1" style={{ overflowWrap: 'anywhere' }}>{label}</h1>

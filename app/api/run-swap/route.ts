@@ -7,6 +7,8 @@ import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { trustState } from '@/lib/eligible';
+import { settleDonationInvoices } from '@/lib/donate';
+import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
 
 const MIN_SWAP = 10;
 const MAX_BALANCE_FRACTION = 0.1;
@@ -17,7 +19,6 @@ const UNPROVEN_DEST_MAX = 5;
 const MAX_EXPOSURE = 600;
 const TARGET_PER_DAY = 10;
 const SOURCE_TRIES = 5;
-const COUNTED = { OR: [{ stage: null }, { stage: { notIn: ['balance', 'limits', 'reserve'] } }] };
 const DEST_MIN_AGE_MS = 3 * 86_400_000;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
 
   const result = await withWalletLock('run-swap', async () => {
     const recovered = await recoverPendingSwaps();
+    await settleDonationInvoices().catch(error => console.error('settleDonationInvoices failed:', error));
     const budget = await budgetState();
     if (!budget.allowed) return { recovered, budget: budget.reason };
 

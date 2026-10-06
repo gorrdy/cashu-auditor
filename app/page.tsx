@@ -10,7 +10,9 @@ import { Suspense } from 'react';
 import { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
-import { AddMintForm, DonateForm } from '@/components/Forms';
+import { AddMintForm } from '@/components/Forms';
+import Donate from '@/components/Donate';
+import { cashuPaymentRequest, qrSvg } from '@/lib/donate';
 import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
@@ -78,6 +80,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
+  const cashuRequest = cashuPaymentRequest();
   const [{ mints, totals, swapsPerDay, now }, recent] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 })]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
@@ -105,7 +108,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     return dir === 'asc' ? c : -c;
   });
 
-  const bars = swapsPerDay.map(d => ({ label: fmtDayKey(d.day), success: d.success, failed: d.failed, pending: d.pending }));
+  const firstActive = swapsPerDay.findIndex(d => d.success + d.failed + d.pending > 0);
+  const bars = swapsPerDay
+    .slice(firstActive < 0 ? 0 : Math.max(0, Math.min(firstActive, swapsPerDay.length - 7)))
+    .map(d => ({ label: fmtDayKey(d.day), success: d.success, failed: d.failed, pending: d.pending }));
   const currentHour = Math.floor(now / HOUR_MS);
 
   return (
@@ -202,7 +208,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                   <td><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></td>
                   <td>
                     <div className="mint-cell">
-                      <MintIcon id={m.id} hash={m.iconHash} />
+                      <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                       <div style={{ minWidth: 0 }}>
                         <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
@@ -242,7 +248,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <tr key={m.id}>
                       <td>
                         <div className="mint-cell">
-                          <MintIcon id={m.id} hash={m.iconHash} />
+                          <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                           <div style={{ minWidth: 0 }}>
                             <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                             {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
@@ -269,7 +275,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <div className="card-head">
           <div>
             <h2 className="h2">Swaps per day</h2>
-            <p className="small soft" style={{ margin: 0 }}>Last 30 days · a swap melts ecash at one mint and mints it at another</p>
+            <p className="small soft" style={{ margin: 0 }}>Last {bars.length} days · a swap melts ecash at one mint and mints it at another</p>
           </div>
         </div>
         <StatusBars buckets={bars} ariaLabel="Swaps per day over the last 30 days, split into paid, failed and pending" firstLabel={bars[0]?.label ?? ''} lastLabel="Today" />
@@ -293,7 +299,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       </section>
 
       <section className="section two-col">
-        <DonateForm />
+        <Donate cashuRequest={cashuRequest} cashuQr={await qrSvg(`cashu:${cashuRequest}`)} />
         <AddMintForm />
       </section>
     </>
