@@ -1,52 +1,82 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { createInvoice, donateToken } from '@/app/actions';
-import CopyField from './CopyField';
-import { StateIcon } from './StateBadge';
 
-type Tab = 'lightning' | 'cashu' | 'token';
-type Invoice = { id: string; request: string; qr: string; expiresAt: number };
+type Tab = 'lightning' | 'ecash';
+type Invoice = { id: string; request: string; qr: string; expiresAt: number; amount: number };
 type InvoiceState = 'unpaid' | 'paid' | 'expired';
 
 const PRESETS = [1000, 5000, 21000];
+const OPEN_EVENT = 'donate:open';
 
-function Note({ kind, children }: { kind: 'ok' | 'failed' | 'pending'; children: React.ReactNode }) {
+export function DonateButton({ tab = 'lightning', className = 'btn', children }: { tab?: Tab; className?: string; children: React.ReactNode }) {
   return (
-    <p className="form-msg" role="status">
-      <span style={{ marginTop: 2 }}><StateIcon kind={kind} /></span>
-      <span>{children}</span>
-    </p>
+    <button type="button" className={className} onClick={() => window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: tab }))}>
+      {children}
+    </button>
   );
 }
+
+export function BoltIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M9.2 1 3 9.2h4.3L6.6 15 13 6.7H8.7L9.2 1Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function CoinIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="8" cy="8" r="6.2" />
+      <path d="m5.4 8.1 1.8 1.8 3.5-3.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function useCopy() {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+      setTimeout(() => setCopied(c => (c === key ? null : c)), 1500);
+    } catch {}
+  };
+  return { copied, copy };
+}
+
+const short = (s: string) => (s.length > 34 ? `${s.slice(0, 18)}…${s.slice(-12)}` : s);
 
 function Qr({ svg, label }: { svg: string; label: string }) {
   return <div className="qr" role="img" aria-label={label} dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 function Lightning() {
-  const [amount, setAmount] = useState(1000);
+  const [amount, setAmount] = useState(5000);
+  const [custom, setCustom] = useState(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [state, setState] = useState<InvoiceState>('unpaid');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [left, setLeft] = useState(0);
+  const { copied, copy } = useCopy();
 
   useEffect(() => {
     if (!invoice || state !== 'unpaid') return;
     let stop = false;
-    const poll = async () => {
+    const poll = setInterval(async () => {
       try {
         const r = await fetch(`/api/donate/invoice/${invoice.id}`, { cache: 'no-store' });
         const { state: s } = (await r.json()) as { state: InvoiceState | 'unknown' };
         if (!stop && (s === 'paid' || s === 'expired')) setState(s);
       } catch {}
-    };
-    const timer = setInterval(poll, 3000);
+    }, 3000);
     const tick = setInterval(() => setLeft(Math.max(0, invoice.expiresAt - Date.now())), 1000);
     return () => {
       stop = true;
-      clearInterval(timer);
+      clearInterval(poll);
       clearInterval(tick);
     };
   }, [invoice, state]);
@@ -57,105 +87,150 @@ function Lightning() {
     const r = await createInvoice(amount).catch(() => ({ error: 'Could not create an invoice.' }));
     setBusy(false);
     if ('error' in r && r.error) return setError(r.error);
+    const inv = { ...(r as Omit<Invoice, 'amount'>), amount };
     setState('unpaid');
-    setLeft(Math.max(0, (r as Invoice).expiresAt - Date.now()));
-    setInvoice(r as Invoice);
+    setLeft(Math.max(0, inv.expiresAt - Date.now()));
+    setInvoice(inv);
   };
 
+  if (invoice && state === 'paid') {
+    return (
+      <div className="donate-done">
+        <span className="donate-done-mark" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 16 16"><path d="m3.5 8.4 3 3 6-6.4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </span>
+        <p className="donate-done-title">{invoice.amount.toLocaleString('en')} sat received</p>
+        <p className="soft small" style={{ margin: 0 }}>Thank you. It goes straight into the next swaps.</p>
+        <button type="button" className="btn secondary" style={{ marginTop: 20 }} onClick={() => setInvoice(null)}>Donate again</button>
+      </div>
+    );
+  }
+
   if (invoice) {
-    const hours = Math.floor(left / 3_600_000), mins = Math.floor((left % 3_600_000) / 60000), secs = Math.floor((left % 60000) / 1000);
-    const expires = hours ? `${hours} h ${mins} min` : `${mins}:${String(secs).padStart(2, '0')}`;
+    const h = Math.floor(left / 3_600_000), m = Math.floor((left % 3_600_000) / 60000), s = Math.floor((left % 60000) / 1000);
+    const expires = h ? `${h} h ${m} min` : `${m}:${String(s).padStart(2, '0')}`;
     return (
       <div className="donate-pay">
-        {state === 'paid' ? (
-          <Note kind="ok">Thank you. {amount.toLocaleString('en')} sat received and added to the audit wallet.</Note>
-        ) : state === 'expired' ? (
-          <Note kind="failed">The invoice expired.</Note>
+        <Qr svg={invoice.qr} label="Lightning invoice QR code" />
+        <p className="donate-amount">{invoice.amount.toLocaleString('en')} <span>sat</span></p>
+        {state === 'expired' ? (
+          <p className="donate-status is-expired">Invoice expired</p>
         ) : (
-          <>
-            <a href={`lightning:${invoice.request}`} className="qr-link"><Qr svg={invoice.qr} label="Lightning invoice QR code" /></a>
-            <Note kind="pending">Waiting for payment · expires in {expires}</Note>
-            <CopyField label="Lightning invoice" value={invoice.request} />
-          </>
+          <p className="donate-status"><span className="pulse" aria-hidden="true" />Waiting for payment · {expires}</p>
         )}
-        <button type="button" className="btn secondary" style={{ marginTop: 12 }} onClick={() => setInvoice(null)}>
-          {state === 'paid' ? 'Donate again' : 'New amount'}
-        </button>
+        <div className="donate-actions">
+          <a className="btn" href={`lightning:${invoice.request}`}><BoltIcon /> Open wallet</a>
+          <button type="button" className="btn secondary" onClick={() => copy('ln', invoice.request)}>{copied === 'ln' ? 'Copied' : 'Copy invoice'}</button>
+        </div>
+        <p className="donate-code mono" title={invoice.request}>{short(invoice.request)}</p>
+        <button type="button" className="linkish" onClick={() => setInvoice(null)}>Change amount</button>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="chips" style={{ marginBottom: 10 }}>
+      <div className="amount-grid" role="radiogroup" aria-label="Amount">
         {PRESETS.map(p => (
-          <button key={p} type="button" className="btn secondary amount-chip" aria-pressed={amount === p} onClick={() => setAmount(p)}>
-            {p.toLocaleString('en')} sat
+          <button key={p} type="button" role="radio" aria-checked={!custom && amount === p} className="amount-tile" onClick={() => { setCustom(false); setAmount(p); }}>
+            <b>{p.toLocaleString('en')}</b><span>sat</span>
           </button>
         ))}
-      </div>
-      <label className="sr-only" htmlFor="ln-amount">Amount in sat</label>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          id="ln-amount"
-          className="field"
-          type="number"
-          inputMode="numeric"
-          min={100}
-          max={1000000}
-          step={1}
-          value={amount || ''}
-          onChange={e => setAmount(Math.floor(Number(e.target.value)))}
-        />
-        <button className="btn nowrap" type="button" disabled={busy || amount < 100} onClick={create}>
-          {busy ? 'Creating…' : 'Create invoice'}
+        <button type="button" role="radio" aria-checked={custom} className="amount-tile" onClick={() => setCustom(true)}>
+          <b>Other</b><span>amount</span>
         </button>
       </div>
-      {error && <Note kind="failed">{error}</Note>}
-    </div>
-  );
-}
-
-function TokenForm() {
-  const [state, action, pending] = useActionState(donateToken, null);
-  return (
-    <form action={action}>
-      <label className="sr-only" htmlFor="token">Cashu token</label>
-      <textarea id="token" name="token" className="field" placeholder="cashuB…" required rows={3} />
-      <div style={{ marginTop: 12 }}>
-        <button className="btn" type="submit" disabled={pending}>{pending ? 'Redeeming…' : 'Donate token'}</button>
-      </div>
-      {state && <Note kind={state.error ? 'failed' : 'ok'}>{state.error ?? state.ok}</Note>}
-    </form>
-  );
-}
-
-export default function Donate({ cashuRequest, cashuQr }: { cashuRequest: string; cashuQr: string }) {
-  const [tab, setTab] = useState<Tab>('lightning');
-  return (
-    <div className="card">
-      <h2 className="h2">Fund the audit</h2>
-      <p className="soft small" style={{ margin: '4px 0 14px' }}>
-        Swaps are paid from donated sats. Everything received goes into real swaps between mints.
-      </p>
-      <div className="segmented" role="group" aria-label="Payment method" style={{ marginBottom: 16 }}>
-        {(['lightning', 'cashu', 'token'] as const).map(t => (
-          <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)}>
-            {t === 'lightning' ? 'Lightning' : t === 'cashu' ? 'Cashu request' : 'Paste token'}
-          </button>
-        ))}
-      </div>
-      {tab === 'lightning' && <Lightning />}
-      {tab === 'cashu' && (
-        <div className="donate-pay">
-          <a href={`cashu:${cashuRequest}`} className="qr-link"><Qr svg={cashuQr} label="Cashu payment request QR code" /></a>
-          <p className="soft small" style={{ margin: '10px 0 0' }}>
-            Scan with a wallet that supports payment requests (NUT-18). Any amount, sat from any mint.
-          </p>
-          <CopyField label="Payment request" value={cashuRequest} />
-        </div>
+      {custom && (
+        <label className="amount-input">
+          <span className="sr-only">Amount in sat</span>
+          <input
+            className="field"
+            type="number"
+            inputMode="numeric"
+            min={100}
+            max={1000000}
+            autoFocus
+            value={amount || ''}
+            onChange={e => setAmount(Math.floor(Number(e.target.value)))}
+          />
+          <span className="amount-unit">sat</span>
+        </label>
       )}
-      {tab === 'token' && <TokenForm />}
+      <button className="btn btn-block" type="button" disabled={busy || amount < 100} onClick={create} style={{ marginTop: 16 }}>
+        <BoltIcon /> {busy ? 'Creating invoice…' : `Pay ${amount >= 100 ? amount.toLocaleString('en') : '…'} sat`}
+      </button>
+      {error && <p className="donate-error" role="status">{error}</p>}
     </div>
+  );
+}
+
+function Ecash({ request, qr }: { request: string; qr: string }) {
+  const [state, action, pending] = useActionState(donateToken, null);
+  const { copied, copy } = useCopy();
+  return (
+    <div>
+      <div className="donate-pay">
+        <Qr svg={qr} label="Cashu payment request QR code" />
+        <p className="soft small" style={{ margin: '12px 0 0', textAlign: 'center' }}>
+          Scan with a Cashu wallet that supports payment requests. Any amount, sat from any mint.
+        </p>
+        <div className="donate-actions">
+          <a className="btn" href={`cashu:${request}`}><CoinIcon /> Open wallet</a>
+          <button type="button" className="btn secondary" onClick={() => copy('creq', request)}>{copied === 'creq' ? 'Copied' : 'Copy request'}</button>
+        </div>
+      </div>
+      <div className="donate-or"><span>or paste a token</span></div>
+      <form action={action}>
+        <label className="sr-only" htmlFor="token">Cashu token</label>
+        <textarea id="token" name="token" className="field mono" placeholder="cashuB…" required rows={2} />
+        <button className="btn secondary btn-block" type="submit" disabled={pending} style={{ marginTop: 10 }}>{pending ? 'Redeeming…' : 'Redeem token'}</button>
+        {state?.error && <p className="donate-error" role="status">{state.error}</p>}
+        {state?.ok && <p className="donate-ok" role="status">{state.ok}</p>}
+      </form>
+    </div>
+  );
+}
+
+export default function DonateDialog({ cashuRequest, cashuQr }: { cashuRequest: string; cashuQr: string }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [tab, setTab] = useState<Tab>('lightning');
+  const [session, setSession] = useState(0);
+
+  useEffect(() => {
+    const open = (e: Event) => {
+      setTab((e as CustomEvent<Tab | undefined>).detail ?? 'lightning');
+      if (!ref.current?.open) setSession(n => n + 1);
+      ref.current?.showModal();
+    };
+    window.addEventListener(OPEN_EVENT, open);
+    if (window.location.hash === '#donate') open(new CustomEvent(OPEN_EVENT));
+    return () => window.removeEventListener(OPEN_EVENT, open);
+  }, []);
+
+  return (
+    <dialog ref={ref} className="sheet" aria-labelledby="donate-title" onClick={e => e.target === ref.current && ref.current.close()}>
+      <div className="sheet-body">
+        <div className="sheet-head">
+          <div>
+            <p className="eyebrow">Support</p>
+            <h2 id="donate-title" className="h2">Fund the audit</h2>
+          </div>
+          <button type="button" className="sheet-close" aria-label="Close" onClick={() => ref.current?.close()}>
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          </button>
+        </div>
+        <p className="soft small" style={{ margin: '0 0 16px' }}>
+          Every swap moves real sats between mints and pays real Lightning fees. Donations are what the audit spends.
+        </p>
+        <div className="tabs" role="tablist" aria-label="Payment method">
+          <button type="button" role="tab" aria-selected={tab === 'lightning'} onClick={() => setTab('lightning')}><BoltIcon /> Lightning</button>
+          <button type="button" role="tab" aria-selected={tab === 'ecash'} onClick={() => setTab('ecash')}><CoinIcon /> Ecash</button>
+        </div>
+        <div key={session} style={{ marginTop: 20 }}>
+          <div hidden={tab !== 'lightning'}><Lightning /></div>
+          <div hidden={tab !== 'ecash'}><Ecash request={cashuRequest} qr={cashuQr} /></div>
+        </div>
+      </div>
+    </dialog>
   );
 }

@@ -11,8 +11,7 @@ import { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
 import { AddMintForm } from '@/components/Forms';
-import Donate from '@/components/Donate';
-import { cashuPaymentRequest, qrSvg } from '@/lib/donate';
+import { BoltIcon, CoinIcon, DonateButton } from '@/components/Donate';
 import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
@@ -80,7 +79,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const sort: SortKey = params.sort && params.sort in COLUMNS ? (params.sort as SortKey) : 'state';
   const dir = params.dir === 'desc' ? 'desc' : 'asc';
 
-  const cashuRequest = cashuPaymentRequest();
   const [{ mints, totals, swapsPerDay, now }, recent] = await Promise.all([getOverview(), getRecentSwaps({ take: 20 })]);
   const graphNodes = mints.map(m => ({ id: m.id, label: mintLabel(m), state: m.state }));
 
@@ -153,6 +151,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <div className="tile-label">Audit balance</div>
           <div className="tile-value">{totals.balance.toLocaleString('en-US')}<small>sat</small></div>
           <div className="tile-sub">Donated {fmtSat(totals.donated)}{totals.reserved ? ` · ${fmtSat(totals.reserved)} in flight` : ''}</div>
+        </div>
+      </section>
+
+      <section className="fund-strip" aria-label="Fund the audit">
+        <div className="fund-text">
+          <p className="fund-title">Keep the swaps running</p>
+          <p className="soft small" style={{ margin: 0 }}>Each swap spends real sats on Lightning fees. Donations fund the next ones.</p>
+        </div>
+        <div className="fund-actions">
+          <DonateButton className="btn"><BoltIcon /> Lightning</DonateButton>
+          <DonateButton tab="ecash" className="btn secondary"><CoinIcon /> Ecash</DonateButton>
         </div>
       </section>
 
@@ -299,7 +308,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       </section>
 
       <section className="section two-col">
-        <Donate cashuRequest={cashuRequest} cashuQr={await qrSvg(`cashu:${cashuRequest}`)} />
         <AddMintForm />
       </section>
     </>

@@ -77,6 +77,13 @@ for (const path of pages) {
     const panel = await page.waitForSelector('.network-panel', { timeout: 5000 }).then(() => true).catch(() => false);
     check(panel, 'network search focuses a mint');
   }
+  await page.click('.nav-donate');
+  const dialog = await page.waitForSelector('dialog.sheet[open]', { timeout: 5000 }).then(() => true).catch(() => false);
+  check(dialog, 'donate dialog opens');
+  if (dialog) {
+    await page.click('dialog.sheet [role="tab"]:nth-child(2)');
+    check(await page.isVisible('dialog.sheet .qr svg'), 'donate dialog shows the ecash QR');
+  }
   await page.close();
 }
 

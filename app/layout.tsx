@@ -5,6 +5,8 @@ import { IBM_Plex_Mono, IBM_Plex_Sans } from 'next/font/google';
 import Mark from '@/components/Mark';
 import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
+import DonateDialog, { DonateButton } from '@/components/Donate';
+import { cashuPaymentRequest, qrSvg } from '@/lib/donate';
 import './globals.css';
 
 const plexSans = IBM_Plex_Sans({
@@ -27,6 +29,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
+  const cashuRequest = cashuPaymentRequest();
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <body>
@@ -40,8 +43,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <LiveStatus />
               <Link href="/">Mints</Link>
               <Link href="/#swaps" className="nav-optional">Swaps</Link>
-              <Link href="/compare">Compare</Link>
+              <Link href="/compare" className="nav-optional">Compare</Link>
               <Link href="/methodology">Methodology</Link>
+              <DonateButton className="btn nav-donate">Donate</DonateButton>
             </nav>
           </div>
         </header>
@@ -53,6 +57,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </div>
         </footer>
         <HoverTip />
+        <DonateDialog cashuRequest={cashuRequest} cashuQr={await qrSvg(`cashu:${cashuRequest}`)} />
       </body>
     </html>
   );
