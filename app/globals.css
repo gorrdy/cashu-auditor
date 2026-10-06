@@ -714,3 +714,53 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 }
 .show-more { display: flex; justify-content: center; margin-top: 16px; }
 .show-more:empty { display: none; }
+
+.op-intro { display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .op-intro { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+.op-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
+.op-features .card { display: flex; flex-direction: column; gap: 6px; }
+.op-login .btn-block { margin-top: 4px; }
+.op-who { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 20px; }
+.op-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
+.op-claim { display: flex; flex-direction: column; gap: 14px; }
+.op-claim-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.op-claim-name { font-weight: 700; font-size: 17px; color: var(--ink); }
+.op-status { flex: none; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.op-status.is-on { color: var(--good); background: rgb(12 163 12 / 0.12); }
+.op-status.is-off { color: var(--accent-ink); background: var(--accent-wash); }
+.op-status.is-pending { color: var(--ink-2); background: var(--surface-2); }
+.op-tabs { grid-template-columns: repeat(2, 1fr); }
+.op-tabs button { flex-direction: column; gap: 0; height: auto; padding: 8px 6px; font-size: 13px; line-height: 18px; }
+.op-rec { font-size: 10px; line-height: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); }
+.op-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; font-size: 14px; }
+.op-steps p { margin: 0; }
+.op-steps .btn { align-self: flex-start; }
+.op-code { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); min-width: 0; }
+.op-code code { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.op-code .linkish { margin: 0; flex: none; }
+.op-sub { display: flex; flex-direction: column; gap: 12px; }
+.op-sub-state { margin: 0; }
+.op-sub-title { margin: 6px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); }
+.op-periods { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.op-periods .amount-tile { padding: 10px; }
+.op-periods .amount-tile b { font-size: 14px; line-height: 18px; }
+@media (max-width: 479px) { .op-periods { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.op-token summary { cursor: pointer; font-size: 13px; color: var(--accent-ink); }
+.op-token textarea { margin: 8px 0; min-height: 60px; }
+.op-prefs { display: flex; flex-direction: column; gap: 8px; }
+.op-check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.op-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+.op-minutes { width: 72px; display: inline-block; padding: 4px 8px; }
+.op-prefs .btn { align-self: flex-start; }
+.op-remove { align-self: flex-end; margin: 0; color: var(--ink-3); }
+.op-add-row { display: flex; gap: 8px; }
+.op-add-row .field { flex: 1; min-width: 0; }
+.op-channels { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+.op-channels li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); min-width: 0; }
+.op-kind { flex: none; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-ink); width: 72px; }
+.op-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.op-channels .linkish { margin: 0; }
+.op-add-channels { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.op-channel { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); }
+.op-channel .btn { align-self: flex-start; }
+.op-tests { list-style: none; padding: 0; margin: 8px 0 0; }

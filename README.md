@@ -35,6 +35,13 @@ Environment (production: `/etc/cashu-auditor/env`, never in the repo):
 | `HOME_MINT_URL` | mint that funds the audit |
 | `WALLET_MNEMONIC` | BIP39 seed for NUT-13 deterministic secrets |
 | `BIND_HOST`, `PORT` | listen address |
+| `SWAP_FEE_BUDGET_SAT` | daily Lightning fee cap for swaps (default 1000) |
+| `NOSTR_SECRET_KEY` | hex key the auditor sends operator alerts from (NIP-17) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push keys for operator alerts |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | Telegram alerts; register the webhook with `GET /api/telegram/setup` |
+| `SMTP_URL`, `SMTP_FROM` | email sign-in, email claim verification and email alerts |
+
+Channels without their variables are shown as coming soon on `/operators`.
 
 ## Development
 

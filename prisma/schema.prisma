@@ -224,3 +224,100 @@ model DonationInvoice {
 
   @@index([status, createdAt])
 }
+
+model Operator {
+  id        String          @id @default(cuid())
+  pubkey    String?         @unique
+  email     String?         @unique
+  createdAt DateTime        @default(now())
+  sessions  OperatorSession[]
+  claims    MintClaim[]
+  channels  NotifyChannel[]
+}
+
+model OperatorSession {
+  id         String   @id
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([operatorId])
+}
+
+model LoginChallenge {
+  id        String    @id
+  kind      String
+  email     String?
+  operatorId String?
+  claimId   String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model MintClaim {
+  id          String    @id @default(cuid())
+  operatorId  String
+  operator    Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  mintId      String
+  method      String
+  code        String
+  verifiedAt  DateTime?
+  paidUntil   DateTime?
+  prefs       String?
+  createdAt   DateTime  @default(now())
+  invoices    ClaimInvoice[]
+
+  @@unique([operatorId, mintId])
+  @@index([mintId])
+}
+
+model ClaimInvoice {
+  id        String    @id @default(cuid())
+  claimId   String
+  claim     MintClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  quoteId   String    @unique
+  amount    Int
+  months    Int
+  request   String
+  status    String    @default("unpaid")
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([status, createdAt])
+}
+
+model NotifyChannel {
+  id         String   @id @default(cuid())
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  kind       String
+  target     String
+  label      String?
+  createdAt  DateTime @default(now())
+
+  @@unique([operatorId, kind, target])
+}
+
+model NotifyState {
+  mintId     String
+  event      String
+  key        String   @default("")
+  since      DateTime
+  notifiedAt DateTime?
+
+  @@id([mintId, event])
+}
+
+model NotifyLog {
+  id        String   @id @default(cuid())
+  claimId   String
+  channelId String
+  event     String
+  ok        Boolean
+  error     String?
+  timestamp DateTime @default(now())
+
+  @@index([claimId, timestamp])
+}

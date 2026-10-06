@@ -10,6 +10,7 @@ import { latestStatuses, trustState } from '@/lib/eligible';
 import { startOfDay } from '@/lib/time';
 import { mintFreshness, pairKey, pairPriority, pairStates } from '@/lib/pairSchedule';
 import { settleDonationInvoices } from '@/lib/donate';
+import { settleClaimInvoices } from '@/lib/operator/billing';
 import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
 import { DAY, FEE_BUFFER, MAX_SWAP, MIN_AGE_MS as DEST_MIN_AGE_MS, MIN_SWAP, OPERATOR_EXPOSURE as MAX_EXPOSURE, UNPROVEN_DEST_MAX } from '@/lib/constants';
 
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
   const result = await withWalletLock('run-swap', async () => {
     const recovered = await recoverPendingSwaps();
     await settleDonationInvoices().catch(error => console.error('settleDonationInvoices failed:', error));
+    await settleClaimInvoices().catch(error => console.error('settleClaimInvoices failed:', error));
     const budget = await budgetState();
     if (!budget.allowed) return { recovered, budget: budget.reason };
 

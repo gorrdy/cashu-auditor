@@ -63,6 +63,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/compare">Compare</Link>
               <Link href="/infrastructure">Infrastructure</Link>
               <Link href="/methodology">Methodology</Link>
+              <Link href="/operators">For operators</Link>
               <a href="https://github.com/gorrdy/cashu-auditor">Source</a>
             </nav>
             <span>Checks run from Prague, CZ · times in Europe/Prague</span>

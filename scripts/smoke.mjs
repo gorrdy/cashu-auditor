@@ -38,7 +38,7 @@ for (const [path, status] of [['/api/run-swap', 401], ['/api/status', 401], ['/a
 }
 
 const browser = await chromium.launch({ executablePath: findChromium(), args: ['--no-sandbox'] });
-const pages = ['/', '/?q=cashu', '/methodology', '/infrastructure', `/compare?${compareIds}`, ...(mintId ? [`/mint/${mintId}`] : [])];
+const pages = ['/', '/?q=cashu', '/methodology', '/infrastructure', '/operators', `/compare?${compareIds}`, ...(mintId ? [`/mint/${mintId}`] : [])];
 
 for (const path of pages) {
   for (const width of WIDTHS) {

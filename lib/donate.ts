@@ -43,7 +43,15 @@ export function cashuRequestWithQr() {
   })());
 }
 
-async function redeem(mintUrl: string, token: string | ProofLike[]): Promise<DonateResult> {
+export type Credit = (mintId: string, amount: number) => Promise<string>;
+
+const donationCredit: Credit = async (mintId, amount) => {
+  await prisma.donation.create({ data: { mintId, amount } });
+  publish('donation', { amount });
+  return `Thank you. Received ${amount} sat.`;
+};
+
+async function redeem(mintUrl: string, token: string | ProofLike[], credit: Credit = donationCredit): Promise<DonateResult> {
   const result = await withWalletLock('donate', async (): Promise<DonateResult> => {
     try {
       await assertPublicMintUrl(mintUrl);
@@ -53,8 +61,7 @@ async function redeem(mintUrl: string, token: string | ProofLike[]): Promise<Don
       const mint = await prisma.mint.upsert({ where: { url: mintUrl }, update: {}, create: { url: mintUrl, source: 'donation' } });
       const amount = proofs.reduce((s, p) => s.add(p.amount), Amount.zero()).toNumber();
       await storeProofs(mint.id, proofs);
-      await prisma.donation.create({ data: { mintId: mint.id, amount } });
-      publish('donation', { amount });
+      const message = await credit(mint.id, amount);
 
       let note = '';
       try {
@@ -63,13 +70,12 @@ async function redeem(mintUrl: string, token: string | ProofLike[]): Promise<Don
       } catch (error) {
         console.error('consolidateToHomeMint failed:', error);
       }
-      return { ok: `Thank you. Received ${amount} sat at ${mintUrl}.${note}` };
+      return { ok: `${message}${note}` };
     } catch (error) {
       const known = await prisma.mint.findUnique({ where: { url: mintUrl }, select: { id: true, url: true } });
       const restored = known ? await restoreProofs(known).catch(() => null) : null;
       if (restored?.recovered) {
-        await prisma.donation.create({ data: { mintId: known!.id, amount: restored.recovered } });
-        return { ok: `Thank you. Received ${restored.recovered} sat at ${mintUrl} (recovered after an error).` };
+        return { ok: `${await credit(known!.id, restored.recovered)} (recovered after an error)` };
       }
       return { error: `Could not redeem token: ${errorMessage(error)}` };
     }
@@ -77,7 +83,7 @@ async function redeem(mintUrl: string, token: string | ProofLike[]): Promise<Don
   return result ?? { error: BUSY };
 }
 
-export async function redeemToken(raw: string): Promise<DonateResult> {
+export async function redeemToken(raw: string, credit?: Credit): Promise<DonateResult> {
   if (!raw) return { error: 'Paste a Cashu token.' };
   let meta;
   try {
@@ -88,7 +94,7 @@ export async function redeemToken(raw: string): Promise<DonateResult> {
   const mintUrl = normalizeMintUrl(meta.mint ?? '');
   if (!mintUrl) return { error: 'Token has no valid https mint URL.' };
   if ((meta.unit ?? 'sat') !== 'sat') return { error: 'Only sat tokens are accepted.' };
-  return redeem(mintUrl, raw);
+  return redeem(mintUrl, raw, credit);
 }
 
 type PayloadProof = { id: string; amount: number; secret: string; C: string };
@@ -119,10 +125,8 @@ export async function createDonationInvoice(amount: number) {
   const open = await prisma.donationInvoice.count({ where: { status: 'unpaid', expiresAt: { gt: new Date() } } });
   if (open >= MAX_OPEN_INVOICES) return { error: 'Too many open invoices. Try again in a few minutes.' };
   try {
-    const wallet = createWallet(home);
-    await withTimeout(wallet.loadMint());
-    const quote = await withTimeout(wallet.createMintQuoteBolt11(amount));
-    const expiresAt = new Date(quote.expiry ? quote.expiry * 1000 : Date.now() + HOUR);
+    const quote = await createHomeQuote(home, amount);
+    const expiresAt = quote.expiresAt;
     const row = await prisma.donationInvoice.create({ data: { quoteId: quote.quote, amount, request: quote.request, expiresAt } });
     return { id: row.id, request: quote.request, qr: await qrSvg(`lightning:${quote.request}`.toUpperCase()), expiresAt: expiresAt.getTime() };
   } catch (error) {
@@ -130,22 +134,32 @@ export async function createDonationInvoice(amount: number) {
   }
 }
 
-type Invoice = { id: string; quoteId: string; amount: number; status: string; expiresAt: Date };
+export async function createHomeQuote(home: string, amount: number) {
+  const wallet = createWallet(home);
+  await withTimeout(wallet.loadMint());
+  const quote = await withTimeout(wallet.createMintQuoteBolt11(amount));
+  return { quote: quote.quote, request: quote.request, expiresAt: new Date(quote.expiry ? quote.expiry * 1000 : Date.now() + HOUR) };
+}
 
-async function settleInvoice(inv: Invoice, home: { id: string; url: string }, locked: boolean): Promise<'unpaid' | 'paid' | 'expired'> {
+export type QuoteInvoice = { id: string; quoteId: string; amount: number; status: string; expiresAt: Date };
+export type QuoteStore = {
+  status: (id: string) => Promise<string | undefined>;
+  expire: (id: string) => Promise<unknown>;
+  issue: (inv: QuoteInvoice, amount: number) => Promise<unknown>;
+};
+
+export async function settleQuote(inv: QuoteInvoice, home: { id: string; url: string }, locked: boolean, store: QuoteStore): Promise<'unpaid' | 'paid' | 'expired'> {
   if (inv.status === 'issued') return 'paid';
   const wallet = createWallet(home.url);
   await withTimeout(wallet.loadMint());
   const quote = await withTimeout(wallet.checkMintQuoteBolt11(inv.quoteId));
   if (quote.state === 'UNPAID') {
     if (inv.expiresAt.getTime() > Date.now()) return 'unpaid';
-    await prisma.donationInvoice.update({ where: { id: inv.id }, data: { status: 'expired' } });
+    await store.expire(inv.id);
     return 'expired';
   }
   if (!locked) return 'paid';
-
-  const fresh = await prisma.donationInvoice.findUnique({ where: { id: inv.id }, select: { status: true } });
-  if (fresh?.status === 'issued') return 'paid';
+  if ((await store.status(inv.id)) === 'issued') return 'paid';
   let amount = inv.amount;
   if (quote.state === 'PAID') {
     const proofs = await withTimeout(wallet.mintProofsBolt11(inv.amount, quote), 30_000);
@@ -153,15 +167,26 @@ async function settleInvoice(inv: Invoice, home: { id: string; url: string }, lo
   } else {
     amount = (await restoreProofs(home)).recovered;
   }
-  await prisma.$transaction([
-    prisma.donationInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } }),
-    prisma.donation.create({ data: { mintId: home.id, amount } }),
-  ]);
-  publish('donation', { amount });
+  await store.issue(inv, amount);
   return 'paid';
 }
 
-async function homeMint() {
+const donationStore: QuoteStore = {
+  status: async id => (await prisma.donationInvoice.findUnique({ where: { id }, select: { status: true } }))?.status,
+  expire: id => prisma.donationInvoice.update({ where: { id }, data: { status: 'expired' } }),
+  issue: async (inv, amount) => {
+    const home = await homeMint();
+    await prisma.$transaction([
+      prisma.donationInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } }),
+      prisma.donation.create({ data: { mintId: home!.id, amount } }),
+    ]);
+    publish('donation', { amount });
+  },
+};
+
+const settleInvoice = (inv: QuoteInvoice, home: { id: string; url: string }, locked: boolean) => settleQuote(inv, home, locked, donationStore);
+
+export async function homeMint() {
   const url = homeMintUrl();
   return url ? prisma.mint.findUnique({ where: { url }, select: { id: true, url: true } }) : null;
 }

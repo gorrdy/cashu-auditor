@@ -7,6 +7,7 @@ import { lookupNetwork } from '@/lib/netinfo';
 import { looksLikeTestMint } from '@/lib/testMint';
 import { publish } from '@/lib/events';
 import { DAY } from '@/lib/constants';
+import { runNotifications } from '@/lib/notify/events';
 
 const ICON_MAX_AGE_MS = DAY;
 const NET_MAX_AGE_MS = DAY;
@@ -164,8 +165,13 @@ async function audit() {
   );
 
   publish('audit', { location: 'prague', online: up });
+  const notified = await runNotifications().catch(error => {
+    console.error('runNotifications failed:', error);
+    return null;
+  });
   return NextResponse.json({
     success: true,
+    notified: notified?.sent ?? 0,
     audited: mints.length,
     online: results.filter(r => r.result.status === 'online').length,
     degraded: results.filter(r => r.result.status === 'degraded').length,

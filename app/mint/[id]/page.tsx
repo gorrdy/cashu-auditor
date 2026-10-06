@@ -36,6 +36,7 @@ export default async function MintPage({ params, searchParams }: Props) {
   const range: RangeKey = parseRange((await searchParams).range);
   const [d, swaps, x, overview] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range), getOverview()]);
   const row = overview.mints.find(m => m.id === id);
+  const verifiedOperator = (await prisma.mintClaim.count({ where: { mintId: id, verifiedAt: { not: null } } })) > 0;
   if (!d) notFound();
 
   const { mint, now } = d;
@@ -333,6 +334,10 @@ export default async function MintPage({ params, searchParams }: Props) {
             <CopyField label="Markdown" value={`[![Cashu Mints Auditor](${SITE_URL}/badge/${mint.id}.svg)](${mintPage(mint.id)})`} />
           </details>
           <p className="small muted" style={{ margin: '8px 0 0' }}>Data for this mint: <a href={`/api/v1/mints/${mint.id}`}>JSON</a></p>
+          <p className="small" style={{ margin: '12px 0 0' }}>
+            {verifiedOperator && <span className="op-status is-on" style={{ marginRight: 8 }}>Verified operator</span>}
+            <Link href={`/operators?claim=${mint.id}`} prefetch={false}>Run this mint? Get alerts when it has a problem</Link>
+          </p>
         </div>
       </section>
 
