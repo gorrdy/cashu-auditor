@@ -11,7 +11,8 @@ import { UptimeLegend } from '@/components/UptimeStrip';
 import StatusBars, { StatusTable } from '@/components/StatusBars';
 import SwapTable from '@/components/SwapTable';
 import { AddMintForm } from '@/components/Forms';
-import { BoltIcon, CoinIcon, DonateButton } from '@/components/Donate';
+import { DonateButton } from '@/components/Donate';
+import { BoltIcon, CoinIcon } from '@/components/icons';
 import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
@@ -276,7 +277,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           </details>
         )}
         <p className="small muted" style={{ marginTop: 8 }}>
-          Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Errors count failed swaps attributed to the mint.
+          Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Errors count failed swaps attributed to the mint in the last 30 days.
         </p>
       </section>
 

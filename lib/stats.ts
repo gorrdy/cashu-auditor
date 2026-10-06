@@ -2,6 +2,8 @@ import { prisma } from './prisma';
 import { makeBlame } from './blame';
 import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
+import { bus } from './events';
+import { latestAudits } from './eligible';
 
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
@@ -40,15 +42,23 @@ function percentile(sorted: number[], p: number) {
 
 const pct = (up: number, total: number) => (total > 0 ? (up / total) * 100 : null);
 
-type UptimeRow = { mintId: string; total: bigint; up: bigint; avgLatency: number | null };
+type UptimeRow = { mintId: string; t1: bigint; u1: bigint; lat1: number | null; t7: bigint; u7: bigint; t30: bigint; u30: bigint };
+type Uptime = { total: number; up: number; avgLatency: number | null };
 
-async function uptimeSince(since: number) {
+async function uptimeWindows(now: number) {
   const rows = await prisma.$queryRaw<UptimeRow[]>`
-    SELECT mintId, COUNT(*) AS total,
-           SUM(CASE WHEN status != 'offline' THEN 1 ELSE 0 END) AS up,
-           AVG(CASE WHEN status != 'offline' THEN latency END) AS avgLatency
-    FROM AuditLog WHERE location = 'prague' AND timestamp >= ${since} GROUP BY mintId`;
-  return new Map(rows.map(r => [r.mintId, { total: Number(r.total), up: Number(r.up), avgLatency: r.avgLatency }]));
+    SELECT mintId,
+           SUM(CASE WHEN timestamp >= ${now - DAY} THEN 1 ELSE 0 END) AS t1,
+           SUM(CASE WHEN timestamp >= ${now - DAY} AND status != 'offline' THEN 1 ELSE 0 END) AS u1,
+           AVG(CASE WHEN timestamp >= ${now - DAY} AND status != 'offline' THEN latency END) AS lat1,
+           SUM(CASE WHEN timestamp >= ${now - 7 * DAY} THEN 1 ELSE 0 END) AS t7,
+           SUM(CASE WHEN timestamp >= ${now - 7 * DAY} AND status != 'offline' THEN 1 ELSE 0 END) AS u7,
+           COUNT(*) AS t30,
+           SUM(CASE WHEN status != 'offline' THEN 1 ELSE 0 END) AS u30
+    FROM AuditLog WHERE location = 'prague' AND timestamp >= ${now - 30 * DAY} GROUP BY mintId`;
+  const window = (total: bigint, up: bigint, avgLatency: number | null = null): Uptime | undefined =>
+    Number(total) ? { total: Number(total), up: Number(up), avgLatency } : undefined;
+  return new Map(rows.map(r => [r.mintId, { d1: window(r.t1, r.u1, r.lat1), d7: window(r.t7, r.u7), d30: window(r.t30, r.u30) }]));
 }
 
 function stateFor(opts: {
@@ -73,7 +83,7 @@ async function onlineHistory() {
   const [raw, hourly] = await Promise.all([
     prisma.$queryRaw<{ mintId: string; lastUp: number | null; first: number }[]>`
       SELECT mintId, MAX(CASE WHEN status != 'offline' THEN timestamp END) AS lastUp, MIN(timestamp) AS first
-      FROM AuditLog WHERE location = 'prague' GROUP BY mintId`,
+      FROM AuditLog WHERE location = 'prague' AND timestamp >= ${Date.now() - 2 * DAY} GROUP BY mintId`,
     prisma.$queryRaw<{ mintId: string; lastUp: number | null; first: number }[]>`
       SELECT mintId, MAX(CASE WHEN up > 0 THEN hour END) AS lastUp, MIN(hour) AS first
       FROM AuditHourly WHERE location = 'prague' GROUP BY mintId`,
@@ -90,31 +100,43 @@ async function onlineHistory() {
   return out;
 }
 
-export async function getOverview(now = Date.now()) {
-  const [mints, latest, up24, up7, up30, strips, balances, donations, swaps30, allSwaps, reviews, history] = await Promise.all([
+const OVERVIEW_TTL_MS = 60_000;
+let overviewCache: { at: number; value: ReturnType<typeof computeOverview> } | null = null;
+bus.on('event', () => {
+  overviewCache = null;
+});
+
+export function getOverview(now?: number) {
+  if (now !== undefined) return computeOverview(now);
+  if (!overviewCache || Date.now() - overviewCache.at > OVERVIEW_TTL_MS) {
+    const value = computeOverview(Date.now());
+    overviewCache = { at: Date.now(), value };
+    value.catch(() => {
+      if (overviewCache?.value === value) overviewCache = null;
+    });
+  }
+  return overviewCache.value;
+}
+
+async function computeOverview(now: number) {
+  const [mints, latest, uptime, strips, balances, donations, swapTotals, allSwaps, mintedBy, meltedBy, reviews, history] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true } }),
-    prisma.$queryRaw<{ mintId: string; status: string; latency: number; timestamp: number; error: string | null }[]>`
-      SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
-      JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
-        ON l.mintId = a.mintId AND l.ts = a.timestamp AND a.location = 'prague'`,
-    uptimeSince(now - DAY),
-    uptimeSince(now - 7 * DAY),
-    uptimeSince(now - 30 * DAY),
+    latestAudits(now),
+    uptimeWindows(now),
     prisma.$queryRaw<{ mintId: string; hour: bigint; total: bigint; up: bigint }[]>`
       SELECT mintId, timestamp / 3600000 AS hour, COUNT(*) AS total,
              SUM(CASE WHEN status != 'offline' THEN 1 ELSE 0 END) AS up
       FROM AuditLog WHERE location = 'prague' AND timestamp >= ${now - DAY} GROUP BY mintId, hour`,
     prisma.proof.groupBy({ by: ['mintId', 'state'], _sum: { amount: true } }),
     prisma.donation.groupBy({ by: ['mintId'], _sum: { amount: true } }),
+    prisma.swap.groupBy({ by: ['status'], where: COUNTED_SWAP, _count: { _all: true }, _sum: { amount: true, fee: true, duration: true } }),
     prisma.swap.findMany({
-      where: { timestamp: { gte: new Date(now - 30 * DAY) }, ...COUNTED_SWAP },
-      select: { status: true, timestamp: true, amount: true },
-    }),
-    prisma.swap.findMany({
-      where: COUNTED_SWAP,
+      where: { AND: [COUNTED_SWAP, { OR: [{ timestamp: { gte: new Date(now - 30 * DAY) } }, { status: 'pending' }] }] },
       select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     }),
+    prisma.swap.groupBy({ by: ['destMintId'], where: { status: 'success' }, _count: { _all: true } }),
+    prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' }, _count: { _all: true } }),
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
     onlineHistory(),
   ]);
@@ -147,6 +169,8 @@ export async function getOverview(now = Date.now()) {
     stripBy.set(s.mintId, arr);
   }
 
+  const mintedCount = new Map(mintedBy.map(r => [r.destMintId, r._count._all]));
+  const meltedCount = new Map(meltedBy.map(r => [r.sourceMintId, r._count._all]));
   const blame = makeBlame(allSwaps, now);
   const swapCounts = new Map<string, { mints: number; melts: number; errors: number; pending: number; lastOkAt: number; lastBlamedAt: number }>();
   const counts = (id: string) => {
@@ -158,8 +182,6 @@ export async function getOverview(now = Date.now()) {
     const t = s.timestamp.getTime();
     const inMonth = now - t < 30 * DAY;
     if (s.status === 'success') {
-      counts(s.destMintId).mints++;
-      counts(s.sourceMintId).melts++;
       if (inMonth) {
         monthOf(s.sourceMintId).ok++;
         monthOf(s.destMintId).ok++;
@@ -182,9 +204,11 @@ export async function getOverview(now = Date.now()) {
 
   const rows = mints.map(m => {
     const l = latestBy.get(m.id);
-    const u24 = up24.get(m.id), u7 = up7.get(m.id), u30 = up30.get(m.id);
+    const u = uptime.get(m.id), u24 = u?.d1, u7 = u?.d7, u30 = u?.d30;
     const uptime24h = u24 ? pct(u24.up, u24.total) : null;
     const c = swapCounts.get(m.id) ?? { mints: 0, melts: 0, errors: 0, pending: 0, lastOkAt: 0, lastBlamedAt: 0 };
+    c.mints = mintedCount.get(m.id) ?? 0;
+    c.melts = meltedCount.get(m.id) ?? 0;
     const recentFailure = now - c.lastBlamedAt < DAY && c.lastBlamedAt > c.lastOkAt;
     const mo = month.get(m.id) ?? { ok: 0, blamed: 0, meltAmount: 0, meltFee: 0 };
     const rv = reviewBy.get(m.id);
@@ -227,11 +251,14 @@ export async function getOverview(now = Date.now()) {
     };
   });
 
-  const done = allSwaps.filter(s => s.status !== 'pending');
-  const ok = done.filter(s => s.status === 'success');
+  const byStatus = (status: string) => swapTotals.find(t => t.status === status);
+  const total = swapTotals.reduce((n, t) => n + t._count._all, 0);
+  const pending = byStatus('pending')?._count._all ?? 0;
+  const ok = byStatus('success');
+  const okCount = ok?._count._all ?? 0;
   const days = lastDays(30, now);
   const perDay = new Map(days.map(d => [d, { success: 0, failed: 0, pending: 0 }]));
-  for (const s of swaps30) {
+  for (const s of allSwaps) {
     const bucket = perDay.get(dayKey(s.timestamp.getTime()));
     if (bucket) bucket[s.status as 'success' | 'failed' | 'pending']++;
   }
@@ -256,13 +283,13 @@ export async function getOverview(now = Date.now()) {
       online: primaries.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
       audited: primaries.filter(r => r.latestStatus).length,
       tracked: primaries.length,
-      swaps: allSwaps.length,
+      swaps: total,
       swaps24h: allSwaps.filter(s => now - s.timestamp.getTime() < DAY).length,
-      pending: allSwaps.length - done.length,
-      successRate: done.length ? (ok.length / done.length) * 100 : null,
-      swapped: ok.reduce((s, x) => s + x.amount, 0),
-      fees: ok.reduce((s, x) => s + x.fee, 0),
-      avgSwapMs: ok.length ? Math.round(ok.reduce((s, x) => s + x.duration, 0) / ok.length) : null,
+      pending,
+      successRate: total - pending ? (okCount / (total - pending)) * 100 : null,
+      swapped: ok?._sum.amount ?? 0,
+      fees: ok?._sum.fee ?? 0,
+      avgSwapMs: okCount ? Math.round((ok?._sum.duration ?? 0) / okCount) : null,
       lastCheck: latest.length ? Math.max(...latest.map(l => Number(l.timestamp))) : null,
     },
     swapsPerDay: days.map(d => ({ day: d, ...perDay.get(d)! })),

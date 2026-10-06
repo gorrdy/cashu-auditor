@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const TYPES = ['audit', 'swap', 'donation', 'checks', 'mints'] as const;
-const MIN_REFRESH_GAP_MS = 4_000;
+const MIN_REFRESH_GAP_MS = 10_000;
+const STATIC_PATHS = new Set(['/methodology']);
 
 export default function LiveStatus() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isStatic = STATIC_PATHS.has(pathname);
   const [state, setState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [last, setLast] = useState<string | null>(null);
   const pending = useRef(false);
@@ -16,6 +19,7 @@ export default function LiveStatus() {
 
   useEffect(() => {
     const refresh = () => {
+      if (isStatic) return;
       if (document.visibilityState !== 'visible') {
         pending.current = true;
         return;
@@ -47,7 +51,7 @@ export default function LiveStatus() {
       document.removeEventListener('visibilitychange', onVisible);
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [router]);
+  }, [router, isStatic]);
 
   const label = state === 'live' ? 'Live' : state === 'connecting' ? 'Connecting' : 'Offline';
   return (

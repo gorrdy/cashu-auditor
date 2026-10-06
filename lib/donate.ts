@@ -32,6 +32,15 @@ export function cashuPaymentRequest() {
   ).toEncodedCreqA();
 }
 
+let requestQr: Promise<{ request: string; qr: string }> | null = null;
+
+export function cashuRequestWithQr() {
+  return (requestQr ??= (async () => {
+    const request = cashuPaymentRequest();
+    return { request, qr: await qrSvg(`cashu:${request}`) };
+  })());
+}
+
 async function redeem(mintUrl: string, token: string | ProofLike[]): Promise<DonateResult> {
   const result = await withWalletLock('donate', async (): Promise<DonateResult> => {
     try {

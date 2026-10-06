@@ -74,6 +74,7 @@ model Proof {
   storedAt DateTime @default(now())
 
   @@index([mintId, state])
+  @@index([state])
   @@index([swapId])
 }
 
@@ -128,7 +129,8 @@ model AuditLog {
   timestamp  DateTime @default(now())
 
   @@index([mintId, location, timestamp])
-  @@index([location, timestamp])
+  @@index([location, timestamp, mintId, status, latency])
+  @@index([timestamp])
 }
 
 model Donation {
@@ -195,7 +197,6 @@ model AuditHourly {
   p95      Int?
 
   @@id([mintId, location, hour])
-  @@index([mintId, location, hour])
 }
 
 model ScoreDaily {

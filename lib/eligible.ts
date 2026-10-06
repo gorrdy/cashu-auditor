@@ -1,12 +1,18 @@
 import { prisma } from './prisma';
 import type { PaymentMethod } from './probe';
 
-export async function latestStatuses() {
-  const rows = await prisma.$queryRaw<{ mintId: string; status: string }[]>`
-    SELECT a.mintId, a.status FROM AuditLog a
-    JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' GROUP BY mintId) l
+export type LatestAudit = { mintId: string; status: string; latency: number; timestamp: number; error: string | null };
+
+export async function latestAudits(now = Date.now()) {
+  const since = now - 2 * 3_600_000;
+  return prisma.$queryRaw<LatestAudit[]>`
+    SELECT a.mintId, a.status, a.latency, a.timestamp, a.error FROM AuditLog a
+    JOIN (SELECT mintId, MAX(timestamp) ts FROM AuditLog WHERE location = 'prague' AND timestamp >= ${since} GROUP BY mintId) l
       ON l.mintId = a.mintId AND l.ts = a.timestamp AND a.location = 'prague'`;
-  return new Map(rows.map(r => [r.mintId, r.status]));
+}
+
+export async function latestStatuses(now = Date.now()) {
+  return new Map((await latestAudits(now)).map(r => [r.mintId, r.status]));
 }
 
 export async function swappableMints() {
