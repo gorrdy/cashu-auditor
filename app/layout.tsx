@@ -1,29 +1,14 @@
 import type { Metadata } from 'next';
 import { connection } from 'next/server';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { IBM_Plex_Mono, IBM_Plex_Sans, JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
+import { JetBrains_Mono, Plus_Jakarta_Sans } from 'next/font/google';
 import Mark from '@/components/Mark';
 import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
-import './design-modern.css';
-import DesignSwitch from '@/components/DesignSwitch';
 import { SITE_URL } from '@/lib/site';
-
-const plexSans = IBM_Plex_Sans({
-  variable: '--font-plex-sans',
-  subsets: ['latin', 'latin-ext'],
-  weight: ['400', '500', '600'],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: '--font-plex-mono',
-  subsets: ['latin', 'latin-ext'],
-  weight: ['400', '500'],
-});
 
 const jakarta = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
@@ -46,9 +31,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
   const cashu = await cashuRequestWithQr();
-  const design = (await cookies()).get('design')?.value === 'modern' ? 'modern' : 'classic';
   return (
-    <html lang="en" data-design={design} className={`${plexSans.variable} ${plexMono.variable} ${jakarta.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
         <header className="site-header">
           <div className="wrap">
@@ -74,7 +58,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </div>
         </footer>
         <HoverTip />
-        <DesignSwitch initial={design} />
         <DonateDialog cashuRequest={cashu.request} cashuQr={cashu.qr} />
       </body>
     </html>

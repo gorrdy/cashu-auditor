@@ -24,11 +24,11 @@ export function StateIcon({ kind, size = 14 }: { kind: Kind; size?: number }) {
     case 'warn':
     case 'pending':
       return (
-        <svg {...s}><path d="M8 1.5l7 12.5H1z" fill="var(--warning)" strokeLinejoin="round" /><path d="M8 6v4" stroke="#1a1712" strokeWidth="1.7" strokeLinecap="round" /><circle cx="8" cy="12" r="1" fill="#1a1712" /></svg>
+        <svg {...s}><path d="M8 1.5l7 12.5H1z" fill="var(--warning)" strokeLinejoin="round" /><path d="M8 6v4" stroke="#12131c" strokeWidth="1.7" strokeLinecap="round" /><circle cx="8" cy="12" r="1" fill="#12131c" /></svg>
       );
     case 'degraded':
       return (
-        <svg {...s}><path d="M8 1l7 7-7 7-7-7z" fill="var(--serious)" /><path d="M8 4.8v3.8" stroke="#1a1712" strokeWidth="1.7" strokeLinecap="round" /><circle cx="8" cy="11" r="1" fill="#1a1712" /></svg>
+        <svg {...s}><path d="M8 1l7 7-7 7-7-7z" fill="var(--serious)" /><path d="M8 4.8v3.8" stroke="#12131c" strokeWidth="1.7" strokeLinecap="round" /><circle cx="8" cy="11" r="1" fill="#12131c" /></svg>
       );
     case 'error':
     case 'failed':

@@ -51,7 +51,7 @@ function SortHeader({ col, sort, dir, align, className, query, first = 'asc' }: 
       <Link className="sort" href={`/?${query}${query ? '&' : ''}sort=${col}&dir=${next}`} aria-current={active} scroll={false} prefetch={false}>
         <span className="lbl-long">{COLUMNS[col][0]}</span>
         <span className="lbl-short">{COLUMNS[col][1]}</span>
-        <span aria-hidden="true" style={{ fontSize: 10, color: active ? 'var(--copper)' : 'var(--ink-3)' }}>
+        <span aria-hidden="true" style={{ fontSize: 10, color: active ? 'var(--accent)' : 'var(--ink-3)' }}>
           {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
         </span>
       </Link>

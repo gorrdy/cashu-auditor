@@ -317,7 +317,7 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(s => (s === n.id ? null : n.id)); } }}
                 >
                   <circle cx={p.x} cy={p.y} r={r + 8 / view.k} fill="transparent" />
-                  <circle cx={p.x} cy={p.y} r={r} fill="var(--surface)" stroke={isSel || matches.has(n.id) ? 'var(--copper)' : 'var(--ink-2)'} strokeWidth={(isSel ? 3 : 2) / Math.sqrt(view.k)} />
+                  <circle cx={p.x} cy={p.y} r={r} fill="var(--surface)" stroke={isSel || matches.has(n.id) ? 'var(--accent)' : 'var(--ink-2)'} strokeWidth={(isSel ? 3 : 2) / Math.sqrt(view.k)} />
                   {n.state === 'error' && <circle cx={p.x} cy={p.y} r={Math.max(1.5, r * 0.55)} fill="var(--critical)" />}
                   {n.state === 'warn' && <circle cx={p.x} cy={p.y} r={Math.max(1.5, r * 0.55)} fill="var(--warning)" />}
                 </g>
