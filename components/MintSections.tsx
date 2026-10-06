@@ -326,10 +326,10 @@ export function PayoutsCard({ rows, rangeLabel }: { rows: { id: string; label: s
   );
 }
 
-const fmtCapacity = (sat: number | undefined) =>
+export const fmtCapacity = (sat: number | undefined) =>
   sat == null ? '—' : sat >= 1_000_000 ? `${(sat / 100_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 })} BTC` : fmtSat(sat);
 
-function NodeName({ node }: { node: GraphNode }) {
+export function NodeName({ node }: { node: GraphNode }) {
   return (
     <a href={`https://mempool.space/lightning/node/${node.pubkey}`} target="_blank" rel="noopener noreferrer">
       {node.alias || <span className="mono">{node.pubkey.slice(0, 16)}…</span>}
@@ -337,7 +337,7 @@ function NodeName({ node }: { node: GraphNode }) {
   );
 }
 
-function reachability(ln: LnNode, received: boolean): { kind: 'ok' | 'warn' | 'error'; text: string } {
+export function reachability(ln: LnNode, received: boolean): { kind: 'ok' | 'warn' | 'error'; text: string } {
   const { node, via } = ln;
   const publicHop = via.find(v => v.public && (v.channels ?? 0) > 0);
   if (node.public && (node.channels ?? 0) >= 3) return { kind: 'ok', text: `Public node with ${node.channels} channels` };

@@ -4,6 +4,7 @@ import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
 import { latestAudits } from './eligible';
+import { newestVersions, versionStatus } from './versions';
 import { FEE_BUDGET_PER_DAY, feesSince, STOP_BELOW } from './budget';
 import { DAY, HOUR } from './constants';
 
@@ -33,6 +34,13 @@ export function lastDays(n: number, now: number): string[] {
     if (keys[keys.length - 1] !== k) keys.push(k);
   }
   return keys;
+}
+
+function median(values: number[]) {
+  if (!values.length) return null;
+  const v = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(v.length / 2);
+  return v.length % 2 ? v[mid] : Math.round((v[mid - 1] + v[mid]) / 2);
 }
 
 function percentile(sorted: number[], p: number) {
@@ -175,6 +183,7 @@ async function computeOverview(now: number) {
 
   const mintedCount = new Map(mintedBy.map(r => [r.destMintId, r._count._all]));
   const meltedCount = new Map(meltedBy.map(r => [r.sourceMintId, r._count._all]));
+  const payoutDurations = new Map<string, number[]>();
   const blame = makeBlame(allSwaps, now);
   const swapCounts = new Map<string, { mints: number; melts: number; errors: number; pending: number; lastOkAt: number; lastBlamedAt: number }>();
   const counts = (id: string) => {
@@ -187,6 +196,9 @@ async function computeOverview(now: number) {
     const inMonth = now - t < 30 * DAY;
     if (s.status === 'success') {
       if (inMonth) {
+        const list = payoutDurations.get(s.sourceMintId);
+        if (list) list.push(s.duration);
+        else payoutDurations.set(s.sourceMintId, [s.duration]);
         monthOf(s.sourceMintId).ok++;
         monthOf(s.destMintId).ok++;
         monthOf(s.sourceMintId).meltAmount += s.amount;
@@ -246,6 +258,7 @@ async function computeOverview(now: number) {
       scoreParts,
       units: m.units ? (JSON.parse(m.units) as string[]) : [],
       avgLatency24h: u24?.avgLatency ? Math.round(u24.avgLatency) : null,
+      payoutMs: median(payoutDurations.get(m.id) ?? []),
       strip: stripBy.get(m.id) ?? Array<number | null>(24).fill(null),
       balance: bal.unspent,
       reserved: bal.reserved,
@@ -267,11 +280,13 @@ async function computeOverview(now: number) {
     if (bucket) bucket[s.status as 'success' | 'failed' | 'pending']++;
   }
 
+  const newest = newestVersions(rows.filter(r => !r.aliasOfId && !r.longOffline).map(r => r.version));
   const aliasRows = rows.filter(r => r.aliasOfId);
   const primaries = rows
     .filter(r => !r.aliasOfId)
     .map(r => ({
       ...r,
+      versionStatus: versionStatus(r.version, newest),
       aliases: aliasRows
         .filter(a => a.aliasOfId === r.id)
         .map(a => ({ id: a.id, url: a.url, name: a.name, latestStatus: a.latestStatus, latency: a.latestLatency, uptime24h: a.uptime24h })),

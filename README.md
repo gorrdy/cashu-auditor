@@ -1,4 +1,4 @@
-# Cashu Audit
+# Cashu Mints Auditor
 
 Independent proof that Cashu mints pay. Runs at https://audit.cashu.cz.
 

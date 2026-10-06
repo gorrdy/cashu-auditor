@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { DAY, getMintDetail, getRecentSwaps, parseRange, RANGES, type RangeKey } from '@/lib/stats';
+import { DAY, getMintDetail, getOverview, getRecentSwaps, parseRange, RANGES, type RangeKey } from '@/lib/stats';
 import { prisma } from '@/lib/prisma';
 import { isMintId } from '@/lib/mintUrl';
 import StateBadge from '@/components/StateBadge';
@@ -34,7 +34,8 @@ export default async function MintPage({ params, searchParams }: Props) {
   const alias = await prisma.mint.findUnique({ where: { id }, select: { aliasOfId: true } });
   if (alias?.aliasOfId) permanentRedirect(`/mint/${alias.aliasOfId}`);
   const range: RangeKey = parseRange((await searchParams).range);
-  const [d, swaps, x] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range)]);
+  const [d, swaps, x, overview] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range), getOverview()]);
+  const row = overview.mints.find(m => m.id === id);
   if (!d) notFound();
 
   const { mint, now } = d;
@@ -311,21 +312,25 @@ export default async function MintPage({ params, searchParams }: Props) {
           <h2 className="h2">Audit account</h2>
           <dl className="kv" style={{ marginTop: 12 }}>
             <dt>Host</dt><dd className="mono">{hostOf(mint.url)}</dd>
-            <dt>Software</dt><dd className="mono">{mint.version ?? '—'}</dd>
+            <dt>Software</dt>
+            <dd>
+              <span className="mono">{mint.version ?? '—'}</span>
+              {row?.versionStatus?.outdated && <> <span className="outdated">outdated</span> <span className="small muted">newest seen: <span className="mono">{row.versionStatus.newest}</span></span></>}
+            </dd>
             <dt>Tracked since</dt><dd>{fmtDate(mint.addedAt)} · via {mint.source}</dd>
             <dt>Audit balance</dt><dd>{fmtSat(d.balance)}{d.reserved ? ` · ${fmtSat(d.reserved)} in flight` : ''}</dd>
             <dt>Donated here</dt><dd>{fmtSat(d.donated)}</dd>
           </dl>
           <p className="small soft" style={{ margin: '20px 0 8px' }}>Uptime badge</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/badge/${mint.id}.svg`} alt="Cashu Audit badge" height={20} />
+          <img src={`/badge/${mint.id}.svg`} alt="Cashu Mints Auditor badge" height={20} />
           <details className="table-view">
             <summary>Embed on your site</summary>
             <p className="small soft" style={{ margin: '8px 0 0' }}>
               For mint operators: paste one of these into your website or README to show this badge, linked to this page. It updates every few minutes.
             </p>
-            <CopyField label="HTML" value={`<a href="${mintPage(mint.id)}"><img src="${SITE_URL}/badge/${mint.id}.svg" alt="Cashu Audit"></a>`} />
-            <CopyField label="Markdown" value={`[![Cashu Audit](${SITE_URL}/badge/${mint.id}.svg)](${mintPage(mint.id)})`} />
+            <CopyField label="HTML" value={`<a href="${mintPage(mint.id)}"><img src="${SITE_URL}/badge/${mint.id}.svg" alt="Cashu Mints Auditor"></a>`} />
+            <CopyField label="Markdown" value={`[![Cashu Mints Auditor](${SITE_URL}/badge/${mint.id}.svg)](${mintPage(mint.id)})`} />
           </details>
           <p className="small muted" style={{ margin: '8px 0 0' }}>Data for this mint: <a href={`/api/v1/mints/${mint.id}`}>JSON</a></p>
         </div>

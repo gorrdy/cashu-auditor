@@ -29,7 +29,7 @@ export function cashuPaymentRequest() {
     undefined,
     'sat',
     undefined,
-    'Fund Cashu Audit',
+    'Fund Cashu Mints Auditor',
     false
   ).toEncodedCreqA();
 }

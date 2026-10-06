@@ -9,7 +9,7 @@ export default function Methodology() {
       <p className="eyebrow">Methodology</p>
       <h1 className="h1" style={{ marginTop: 8 }}>How the audit works</h1>
       <p>
-        Cashu Audit is an assay office for ecash. It does not rate mints. It records what a mint did when asked to
+        Cashu Mints Auditor is an assay office for ecash. It does not rate mints. It records what a mint did when asked to
         answer and when asked to pay, and publishes the log.
       </p>
 

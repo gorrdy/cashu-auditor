@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { mintList } from '@/lib/api';
 
-export const alt = 'Cashu mint audit';
+export const alt = 'Cashu Mints Auditor';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -22,7 +22,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: '#f5f6fa', color: '#12131c', padding: 72 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 30 }}>
-          <span style={{ display: 'flex', gap: 12 }}><span>cashu</span><b>audit</b></span>
+          <span style={{ display: 'flex', gap: 12 }}><span>Cashu Mints</span><b>Auditor</b></span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><span style={{ width: 22, height: 22, borderRadius: 11, background: stateColor }} />{stateLabel}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

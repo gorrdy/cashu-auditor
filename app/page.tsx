@@ -26,6 +26,7 @@ const COLUMNS = {
   name: ['Mint', 'Mint'],
   uptime: ['Uptime 30 d', '30 d'],
   latency: ['Latency', 'ms'],
+  payout: ['Payout', 'Payout'],
   balance: ['Balance', 'Balance'],
   errors: ['Errors', 'Errors'],
 } as const;
@@ -39,6 +40,7 @@ const compare: Record<SortKey, (a: Row, b: Row) => number> = {
   name: (a, b) => mintLabel(a).localeCompare(mintLabel(b)),
   uptime: (a, b) => (a.uptime30d ?? -1) - (b.uptime30d ?? -1),
   latency: (a, b) => (a.avgLatency24h ?? Infinity) - (b.avgLatency24h ?? Infinity),
+  payout: (a, b) => (a.payoutMs ?? Infinity) - (b.payoutMs ?? Infinity),
   balance: (a, b) => a.balance - b.balance,
   errors: (a, b) => a.errors - b.errors,
 };
@@ -119,7 +121,6 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   return (
     <>
       <section>
-        <p className="eyebrow">Cashu mint audit</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginTop: 8 }}>
           <div style={{ maxWidth: 640 }}>
             <h1 className="h1 hero-title">Do Cashu mints <span className="h1-accent">actually pay?</span></h1>
@@ -226,7 +227,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                 <th className="c-lg">Last 24 h</th>
                 <SortHeader col="uptime" sort={sort} dir={dir} query={query} align="r" />
                 <SortHeader col="latency" sort={sort} dir={dir} query={query} align="r" />
-                <th className="c-xl">Version</th>
+                <SortHeader col="payout" sort={sort} dir={dir} query={query} align="r" className="c-lg" />
+                <th className="c-2xl">Version</th>
                 <SortHeader col="balance" sort={sort} dir={dir} query={query} align="r" className="c-lg" />
                 <SortHeader col="errors" sort={sort} dir={dir} query={query} align="r" className="c-md" />
               </tr>
@@ -241,6 +243,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       <div style={{ minWidth: 0 }}>
                         <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
+                        {m.versionStatus?.outdated && <div><span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span></div>}
                         {m.isTest && <div className="url" title="Test mint: may issue unbacked ecash. Checked, but not used as a swap destination.">test mint</div>}
                         {m.aliases.length > 0 && <div className="url" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</div>}
                       </div>
@@ -254,7 +257,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                   </td>
                   <td className="r nowrap" title={`24 h ${fmtPct(m.uptime24h)} · 7 d ${fmtPct(m.uptime7d)}`}>{fmtPct(m.uptime30d)}</td>
                   <td className="r nowrap">{fmtMs(m.avgLatency24h)}</td>
-                  <td className="mono soft nowrap c-xl"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
+                  <td className="r nowrap c-lg" title="Median time of a successful payout from this mint, 30 days">{m.payoutMs == null ? <span className="muted">—</span> : fmtMs(m.payoutMs)}</td>
+                  <td className="mono soft nowrap c-2xl"><span className="cell-clip" title={m.version ?? undefined}>{m.version ?? '—'}</span></td>
                   <td className="r nowrap c-lg">{m.balance ? fmtSat(m.balance) : <span className="muted">—</span>}</td>
                   <td className="r nowrap c-md">{m.errors || <span className="muted">0</span>}</td>
                 </tr>
@@ -296,7 +300,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           </details>
         )}
         <p className="small muted" style={{ marginTop: 8 }}>
-          Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Errors count failed swaps attributed to the mint in the last 30 days.
+          Latency is the 24-hour average of <span className="mono">GET /v1/info</span> from Prague. Payout is the median time of a successful swap paid out by the mint, 30 days. Errors count failed swaps attributed to the mint in the last 30 days. Outdated means two or more minor versions behind the newest release of the same software seen in the audit.
         </p>
       </section>
 
