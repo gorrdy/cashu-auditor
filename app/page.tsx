@@ -16,7 +16,7 @@ import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf,
 
 export const revalidate = 60;
 
-const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 0, unknown: 1, error: 2 };
+const STATE_ORDER: Record<MintState, number> = { ok: 0, warn: 1, unknown: 2, error: 3 };
 
 const COLUMNS = {
   state: ['State', 'State'],
