@@ -39,6 +39,6 @@ export async function POST(request: Request) {
     await telegramApi('sendMessage', { chat_id: chatId, text: 'Disconnected. You will not get alerts here any more.' }).catch(() => null);
     return ok();
   }
-  await telegramApi('sendMessage', { chat_id: chatId, text: 'Connect this chat from the operator page at https://audit.cashu.cz/operators.' }).catch(() => null);
+  await telegramApi('sendMessage', { chat_id: chatId, text: 'Connect this chat from the operator page at https://cashu.info/operators.' }).catch(() => null);
   return ok();
 }

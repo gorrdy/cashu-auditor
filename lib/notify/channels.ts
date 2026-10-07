@@ -61,7 +61,7 @@ let vapidReady = false;
 
 async function sendPush(subscription: string, m: Message) {
   if (!vapidReady) {
-    webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? 'https://audit.cashu.cz', process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT ?? 'https://cashu.info', process.env.VAPID_PUBLIC_KEY!, process.env.VAPID_PRIVATE_KEY!);
     vapidReady = true;
   }
   await webpush.sendNotification(JSON.parse(subscription), JSON.stringify(m), { TTL: 24 * 3600 });

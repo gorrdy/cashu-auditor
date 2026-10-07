@@ -119,6 +119,6 @@ export async function runNotifications(now = Date.now()) {
 export async function sendTest(operatorId: string) {
   const channels = await prisma.notifyChannel.findMany({ where: { operatorId } });
   const results = [];
-  for (const ch of channels) results.push({ kind: ch.kind, ...(await sendToChannel(ch, { title: 'Cashu Mints Auditor', body: 'Test notification. Alerts for your mints will arrive like this.', url: 'https://audit.cashu.cz/operators' })) });
+  for (const ch of channels) results.push({ kind: ch.kind, ...(await sendToChannel(ch, { title: 'Cashu Mints Auditor', body: 'Test notification. Alerts for your mints will arrive like this.', url: 'https://cashu.info/operators' })) });
   return results;
 }

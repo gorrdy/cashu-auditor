@@ -16,7 +16,7 @@ export default function Image() {
           <div style={{ fontSize: 76, fontWeight: 700, letterSpacing: -2 }}>Do Cashu mints actually pay?</div>
           <div style={{ fontSize: 32, color: '#4a4e63' }}>Uptime, latency and real Lightning swaps between public Cashu mints, every few minutes.</div>
         </div>
-        <div style={{ fontSize: 26, color: '#4733cf' }}>audit.cashu.cz</div>
+        <div style={{ fontSize: 26, color: '#4733cf' }}>cashu.info</div>
       </div>
     ),
     size

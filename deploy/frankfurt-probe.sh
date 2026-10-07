@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 . /etc/cashu-audit-probe.env
-export UA="cashu-audit/1.0 (+https://audit.cashu.cz/methodology) frankfurt"
+export UA="cashu-audit/1.0 (+https://cashu.info/methodology) frankfurt"
 T=$(mktemp -d)
 export T
 trap 'rm -rf "$T"' EXIT

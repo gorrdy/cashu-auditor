@@ -1,6 +1,6 @@
 # Cashu Mints Auditor — brand manual
 
-Verze 2.0 · 6. 10. 2026 · platí pro audit.cashu.cz a vše, co z projektu vychází
+Verze 2.0 · 6. 10. 2026 · platí pro cashu.info a vše, co z projektu vychází
 (sociální karty, prezentace, nálepky, e-maily s reporty).
 
 ---
@@ -30,7 +30,7 @@ Z toho plyne všechno ostatní:
 |---|---|
 | Plný název | Cashu Mints Auditor |
 | Wordmark | `Cashu Mints Auditor` — „Auditor“ v řezu Bold, ostatní Medium; na jeden řádek |
-| Doména | audit.cashu.cz |
+| Doména | cashu.info (dříve audit.cashu.cz, přesměrováno) |
 | V textu | vždy „Cashu Mints Auditor“, nikdy „CashuMintsAuditor“ ani „CASHU MINTS AUDITOR“ |
 | Krátce (badge, úzká místa) | `cashu audit` |
 

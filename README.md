@@ -1,6 +1,6 @@
 # Cashu Mints Auditor
 
-Independent proof that Cashu mints pay. Runs at https://audit.cashu.cz.
+Independent proof that Cashu mints pay. Runs at https://cashu.info.
 
 The auditor checks every tracked mint every 5 minutes from two locations, moves real sats between mints
 over Lightning, verifies DLEQ proofs and proof states, and publishes the results. See `/methodology` on

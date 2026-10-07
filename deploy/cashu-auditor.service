@@ -1,5 +1,5 @@
 [Unit]
-Description=Cashu Audit (audit.cashu.cz)
+Description=Cashu Mints Auditor (cashu.info)
 After=network-online.target tailscaled.service
 Wants=network-online.target
 
