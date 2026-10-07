@@ -8,7 +8,7 @@ import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { latestStatuses, trustState } from '@/lib/eligible';
 import { startOfDay } from '@/lib/time';
-import { mintFreshness, pairKey, pairPriority, pairStates } from '@/lib/pairSchedule';
+import { dailyCoverage, lastTried, pairKey, pairValue } from '@/lib/pairSchedule';
 import { settleDonationInvoices } from '@/lib/donate';
 import { settleClaimInvoices } from '@/lib/operator/billing';
 import { COUNTED_SWAP as COUNTED } from '@/lib/counted';
@@ -18,7 +18,7 @@ const MAX_BALANCE_FRACTION = 0.1;
 const MAX_DEST_ATTEMPTS = 3;
 const DEST_MIN_UPTIME = 0.95;
 const DEST_MIN_CHECKS = 12;
-const HISTORY_DAYS = 90;
+const HISTORY_DAYS = 30;
 
 async function uptime24h(now: number) {
   const rows = await prisma.$queryRaw<{ mintId: string; total: bigint; up: bigint }[]>`
@@ -63,12 +63,11 @@ export async function GET(request: Request) {
       prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' } }),
     ]);
     const proven = new Set(provenRows.map(r => r.sourceMintId));
-    const states = pairStates(history);
-    const fresh = mintFreshness(history, now);
+    const last = lastTried(history);
     const today = startOfDay(now);
-    const pairedToday = new Set(history.filter(h => h.timestamp.getTime() >= today).map(h => pairKey(h.sourceMintId, h.destMintId)));
-    const outCount = new Map<string, number>();
-    for (const h of history) if (now - h.timestamp.getTime() < DAY) outCount.set(h.sourceMintId, (outCount.get(h.sourceMintId) ?? 0) + 1);
+    const todays = history.filter(h => h.timestamp.getTime() >= today);
+    const coverage = dailyCoverage(todays);
+    const pairedToday = new Set(todays.map(h => pairKey(h.sourceMintId, h.destMintId)));
 
     const sources = online.filter(
       m => (balanceOf.get(m.id) ?? 0) >= Math.max(MIN_SWAP, bolt11Min(m.methods, 'melt')) + FEE_BUFFER && backoff.canSend(m.id)
@@ -86,14 +85,14 @@ export async function GET(request: Request) {
       const amount = MIN_SWAP + Math.floor(Math.random() * (maxSwap - MIN_SWAP + 1));
       for (const dest of receivers) {
         if (dest.id === source.id || pairedToday.has(pairKey(source.id, dest.id)) || !backoff.canPair(source.id, dest.id)) continue;
-        const priority = pairPriority(source.id, dest.id, states, fresh, now);
+        const priority = pairValue(source.id, dest.id, coverage, last, now);
         if (priority === null) continue;
         if (Math.max(bolt11Min(source.methods, 'melt'), bolt11Min(dest.methods, 'mint')) > Math.min(proven.has(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, available)) continue;
         if (dest.url !== home && ((balanceOf.get(dest.id) ?? 0) + amount > MAX_EXPOSURE || !trust.canHoldMore(dest.id, amount))) continue;
-        candidates.push({ source, dest, amount, priority: priority - (outCount.get(source.id) ?? 0) / 1000 + Math.random() / 1e6 });
+        candidates.push({ source, dest, amount, priority: priority + Math.random() });
       }
     }
-    if (candidates.length === 0) return { recovered, skipped: 'No pair is due' };
+    if (candidates.length === 0) return { recovered, skipped: 'Every mint that can be tested has paid out and received today' };
     candidates.sort((a, b) => b.priority - a.priority);
     const { source, amount } = candidates[0];
     const dests = candidates.filter(c => c.source.id === source.id).map(c => c.dest);

@@ -1,54 +1,43 @@
-import { DAY } from './constants';
-
 export type PairSwap = { sourceMintId: string; destMintId: string; status: string; timestamp: Date };
-export type PairState = { last: number; streak: number };
 
-export const NEVER_TRIED = 1e6;
+export const MAX_DAILY_TRIES = 3;
 
 export const pairKey = (source: string, dest: string) => `${source}>${dest}`;
 
-export function pairInterval(streak: number) {
-  if (streak >= 14) return 7 * DAY;
-  if (streak >= 7) return 4 * DAY;
-  if (streak >= 3) return 2 * DAY;
-  return DAY;
-}
-
-export function pairStates(newestFirst: PairSwap[]) {
-  const states = new Map<string, PairState & { open: boolean }>();
+export function lastTried(newestFirst: PairSwap[]) {
+  const last = new Map<string, number>();
   for (const s of newestFirst) {
     const key = pairKey(s.sourceMintId, s.destMintId);
-    let st = states.get(key);
-    if (!st) states.set(key, (st = { last: s.timestamp.getTime(), streak: 0, open: true }));
-    if (!st.open || s.status === 'pending') continue;
-    if (s.status === 'success') st.streak++;
-    else st.open = false;
+    if (!last.has(key)) last.set(key, s.timestamp.getTime());
   }
-  return states as Map<string, PairState>;
+  return last;
 }
 
-export function mintFreshness(swaps: PairSwap[], now: number) {
-  const sent = new Set<string>();
-  const received = new Set<string>();
-  for (const s of swaps) {
-    if (s.status !== 'success' || now - s.timestamp.getTime() >= DAY) continue;
-    sent.add(s.sourceMintId);
-    received.add(s.destMintId);
+export type Coverage = { sent: Set<string>; received: Set<string>; sendTries: Map<string, number>; receiveTries: Map<string, number> };
+
+export function dailyCoverage(today: PairSwap[]): Coverage {
+  const cov: Coverage = { sent: new Set(), received: new Set(), sendTries: new Map(), receiveTries: new Map() };
+  for (const s of today) {
+    if (s.status === 'success') {
+      cov.sent.add(s.sourceMintId);
+      cov.received.add(s.destMintId);
+    } else {
+      cov.sendTries.set(s.sourceMintId, (cov.sendTries.get(s.sourceMintId) ?? 0) + 1);
+      cov.receiveTries.set(s.destMintId, (cov.receiveTries.get(s.destMintId) ?? 0) + 1);
+    }
   }
-  return { sent, received };
+  return cov;
 }
 
-export function pairPriority(
-  source: string,
-  dest: string,
-  states: Map<string, PairState>,
-  fresh: { sent: Set<string>; received: Set<string> },
-  now: number
-): number | null {
-  const st = states.get(pairKey(source, dest));
-  if (!st) return NEVER_TRIED;
-  const overdue = (now - st.last) / pairInterval(st.streak);
-  if (overdue >= 1) return overdue;
-  if (!fresh.sent.has(source) || !fresh.received.has(dest)) return 1 + overdue;
-  return null;
+export const needsOut = (id: string, cov: Coverage) => !cov.sent.has(id) && (cov.sendTries.get(id) ?? 0) < MAX_DAILY_TRIES;
+export const needsIn = (id: string, cov: Coverage) => !cov.received.has(id) && (cov.receiveTries.get(id) ?? 0) < MAX_DAILY_TRIES;
+
+export function pairValue(source: string, dest: string, cov: Coverage, last: Map<string, number>, now: number): number | null {
+  const out = needsOut(source, cov);
+  const inn = needsIn(dest, cov);
+  if (!out && !inn) return null;
+  const reliable = (out || cov.sent.has(source)) && (inn || cov.received.has(dest)) ? 100 : 0;
+  const tried = last.get(pairKey(source, dest));
+  const freshness = tried == null ? 50 : Math.min(49, (now - tried) / 86_400_000);
+  return (Number(out) + Number(inn)) * 1000 + reliable + freshness;
 }
