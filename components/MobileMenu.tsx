@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/app/operators/actions';
+import { ACCOUNT_LINKS, type Profile } from './AccountMenu';
 
 const LINKS = [
   { href: '/', label: 'Mints' },
@@ -14,7 +15,7 @@ const LINKS = [
   { href: '/operators', label: 'For operators' },
 ];
 
-export default function MobileMenu({ signedIn }: { signedIn: boolean }) {
+export default function MobileMenu({ profile }: { profile: Profile }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -51,9 +52,21 @@ export default function MobileMenu({ signedIn }: { signedIn: boolean }) {
             </Link>
           ))}
           <span className="menu-sep" aria-hidden="true" />
-          <Link href="/operators" onClick={() => setOpen(false)}>{signedIn ? 'Your account' : 'Sign in'}</Link>
-          {signedIn && (
-            <button type="button" className="menu-item" onClick={async () => { setOpen(false); await logout(); router.refresh(); }}>Sign out</button>
+          {profile ? (
+            <>
+              <div className="account-head">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={profile.avatar} alt="" width={36} height={36} />
+                <div>
+                  <strong>{profile.name}</strong>
+                  {profile.name !== profile.identity && <span className="small muted">{profile.identity}</span>}
+                </div>
+              </div>
+              {ACCOUNT_LINKS.map(l => <Link key={l.href} href={l.href} onClick={() => setOpen(false)}>{l.label}</Link>)}
+              <button type="button" className="menu-item" onClick={async () => { setOpen(false); await logout(); router.refresh(); }}>Log out</button>
+            </>
+          ) : (
+            <Link href="/operators" onClick={() => setOpen(false)}>Log in</Link>
           )}
         </nav>
       )}

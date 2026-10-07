@@ -1,4 +1,4 @@
-import { resolveTxt } from 'node:dns/promises';
+import { Resolver } from 'node:dns/promises';
 import { prisma } from '../prisma';
 import { probeMint } from '../probe';
 import { randomToken } from './session';
@@ -26,6 +26,12 @@ export function mintContacts(contact: string | null) {
     } else if (method === 'email' && EMAIL.test(info)) email.push(info.toLowerCase());
   }
   return { nostr: [...new Set(nostr)], email: [...new Set(email)] };
+}
+
+async function publicTxt(name: string) {
+  const resolver = new Resolver({ timeout: 4000, tries: 2 });
+  resolver.setServers(['1.1.1.1', '8.8.8.8', '9.9.9.9']);
+  return (await resolver.resolveTxt(name)).map(r => r.join(''));
 }
 
 export const verifyCode = (code: string) => `cashu-audit-verify=${code}`;
@@ -89,7 +95,7 @@ export async function verifyClaim(operatorId: string, claimId: string, method: C
   if (method === 'dns') {
     const host = new URL(mint.url).hostname;
     try {
-      const records = (await resolveTxt(`_cashu-audit.${host}`)).map(r => r.join(''));
+      const records = await publicTxt(`_cashu-audit.${host}`);
       if (!records.some(r => r.trim() === verifyCode(claim.code))) return { error: `TXT record _cashu-audit.${host} does not contain the code yet.` };
     } catch {
       return { error: `No TXT record found at _cashu-audit.${host}.` };

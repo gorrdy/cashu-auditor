@@ -335,14 +335,14 @@ export default function Dashboard({ who, claims, channels, options, preselect, a
         <span className="small soft">Signed in as <span className="mono">{who}</span></span>
         <button type="button" className="linkish" disabled={pending} onClick={() => start(() => logout())}>Sign out</button>
       </div>
-      <section className="section">
+      <section className="section" id="mints">
         <div className="section-head"><h2 className="h2">Your mints</h2></div>
         <div className="op-grid">
           {claims.map(c => <ClaimCard key={c.id} claim={c} operatorNpub={operatorNpub} />)}
           <ClaimForm options={options} preselect={preselect} />
         </div>
       </section>
-      <section className="section">
+      <section className="section" id="alerts">
         <Channels channels={channels} available={available} vapidKey={vapidKey} />
       </section>
     </>

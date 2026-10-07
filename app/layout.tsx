@@ -11,6 +11,7 @@ import AccountMenu from '@/components/AccountMenu';
 import UpdateBanner from '@/components/UpdateBanner';
 import { buildVersion } from '@/lib/version';
 import { currentOperator } from '@/lib/operator/session';
+import { profileOf } from '@/lib/operator/avatar';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
@@ -31,13 +32,15 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'Cashu Mints Auditor', template: '%s · Cashu Mints Auditor' },
+  manifest: '/manifest.webmanifest',
   description: 'Independent proof that Cashu mints pay. Uptime, latency and real Lightning swaps between public Cashu mints.',
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
   const cashu = await cashuRequestWithQr();
-  const signedIn = !!(await currentOperator());
+  const operator = await currentOperator();
+  const profile = operator ? profileOf(operator) : null;
   return (
     <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
@@ -56,9 +59,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <Link href="/operators" className="nav-optional nav-wide">Operators</Link>
-              <span className="nav-optional"><AccountMenu signedIn={signedIn} /></span>
+              <span className="nav-optional"><AccountMenu profile={profile} /></span>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
-              <MobileMenu signedIn={signedIn} />
+              <MobileMenu profile={profile} />
             </nav>
           </div>
         </header>

@@ -167,3 +167,24 @@ export async function sendTestNotification() {
   const op = await requireOperator();
   return sendTest(op.id);
 }
+
+export async function updateProfileName(name: string): Promise<Result> {
+  const op = await requireOperator();
+  const clean = name.trim().replace(/\s+/g, ' ').slice(0, 40);
+  await prisma.operator.update({ where: { id: op.id }, data: { name: clean || null } });
+  revalidatePath('/', 'layout');
+  return { ok: 'Saved.' };
+}
+
+export async function newAvatar() {
+  const op = await requireOperator();
+  await prisma.operator.update({ where: { id: op.id }, data: { avatarSeed: crypto.randomUUID() } });
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteAccount() {
+  const op = await requireOperator();
+  await endSession();
+  await prisma.operator.delete({ where: { id: op.id } });
+  revalidatePath('/', 'layout');
+}

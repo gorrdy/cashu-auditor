@@ -230,6 +230,8 @@ model Operator {
   pubkey    String?         @unique
   email     String?         @unique
   lnKey     String?         @unique
+  name      String?
+  avatarSeed String?
   createdAt DateTime        @default(now())
   sessions  OperatorSession[]
   claims    MintClaim[]

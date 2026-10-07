@@ -789,3 +789,17 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .account-menu .filter-list { right: 0; left: auto; min-width: 200px; }
 .account-menu .menu-item { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; text-align: left; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; }
 .account-menu .menu-item:hover { background: var(--surface-2); }
+.account-menu > summary.avatar-button { padding: 0; border: 0; background: transparent; border-radius: 50%; }
+.account-menu > summary.avatar-button::after { display: none; }
+.avatar-button img { display: block; width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--line-strong); }
+.account-menu[open] > summary.avatar-button img, .avatar-button:hover img { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent); }
+.account-list { min-width: 240px; }
+.account-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.account-head img { border-radius: 50%; flex: none; }
+.account-head div { display: flex; flex-direction: column; min-width: 0; }
+.account-head strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-head .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-logout { border-top: 1px solid var(--line) !important; border-radius: 0 !important; margin-top: 4px; padding-top: 8px !important; color: var(--accent-ink) !important; }
+.profile-card { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.profile-avatar { border-radius: 50%; box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--line); }
+.profile-field { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; }
