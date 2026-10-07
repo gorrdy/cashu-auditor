@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authorized } from '@/lib/auth';
 import { pruneRaw, rollupHours, snapshotScores } from '@/lib/maintenance';
+import { chargeDue } from '@/lib/operator/billing';
 
 let running = false;
 
@@ -11,8 +12,9 @@ export async function GET(request: Request) {
   try {
     const rollup = await rollupHours();
     const scores = await snapshotScores();
+    const billing = await chargeDue().catch(error => ({ error: String(error) }));
     const prune = new URL(request.url).searchParams.get('prune') === '1' ? await pruneRaw() : null;
-    return NextResponse.json({ success: true, rollup, scores, prune });
+    return NextResponse.json({ success: true, rollup, scores, billing, prune });
   } finally {
     running = false;
   }

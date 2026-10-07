@@ -12,7 +12,7 @@ import { createLnurlChallenge, LNURL_COOKIE } from '@/lib/operator/lnurl';
 import { qrSvg } from '@/lib/donate';
 import { toHexPubkey, verifyLoginEvent } from '@/lib/operator/nostr';
 import { METHODS, startClaim, verifyClaim, type ClaimMethod } from '@/lib/operator/claims';
-import { checkClaimInvoice, createClaimInvoice, payClaimWithToken } from '@/lib/operator/billing';
+import { chargeDue, checkTopupInvoice, createTopupInvoice, topupWithToken } from '@/lib/operator/billing';
 import { emailEnabled, sendEmail } from '@/lib/notify/email';
 import { channelsAvailable } from '@/lib/notify/channels';
 import { DEFAULT_PREFS, EVENTS, parsePrefs, sendTest, type EventKey } from '@/lib/notify/events';
@@ -87,6 +87,7 @@ export async function verifyClaimAction(claimId: string, method: string, email?:
   const op = await requireOperator();
   if (!METHODS.includes(method as ClaimMethod)) return { error: 'Unknown method' };
   const r = await verifyClaim(op.id, claimId, method as ClaimMethod, email);
+  if (r.ok) await chargeDue(Date.now(), op.id);
   revalidatePath('/operators');
   return r;
 }
@@ -107,23 +108,32 @@ export async function savePrefs(claimId: string, events: Partial<Record<EventKey
   return { ok: 'Saved.' };
 }
 
-export async function createSubscriptionInvoice(claimId: string, months: number) {
+export async function createTopup(amount: number) {
   const op = await requireOperator();
-  return createClaimInvoice(op.id, claimId, months);
+  return createTopupInvoice(op.id, Math.round(Number(amount)));
 }
 
-export async function checkSubscriptionInvoice(id: string) {
+export async function checkTopup(id: string) {
   const op = await requireOperator();
-  const state = await checkClaimInvoice(op.id, id);
+  const state = await checkTopupInvoice(op.id, id);
   if (state === 'paid') revalidatePath('/operators');
   return state;
 }
 
-export async function paySubscriptionWithToken(claimId: string, token: string): Promise<Result> {
+export async function topupToken(token: string): Promise<Result> {
   const op = await requireOperator();
-  const r = await payClaimWithToken(op.id, claimId, token);
+  const r = await topupWithToken(op.id, token);
   revalidatePath('/operators');
   return r;
+}
+
+export async function setAlerts(claimId: string, on: boolean): Promise<Result> {
+  const op = await requireOperator();
+  if (!(await ownClaim(op.id, claimId))) return { error: 'Claim not found' };
+  await prisma.mintClaim.update({ where: { id: claimId }, data: { alerts: on } });
+  if (on) await chargeDue(Date.now(), op.id);
+  revalidatePath('/operators');
+  return { ok: on ? 'Alerts on.' : 'Alerts off. This mint is no longer charged.' };
 }
 
 export async function addNostrChannel(npub: string): Promise<Result> {

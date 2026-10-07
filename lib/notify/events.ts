@@ -63,7 +63,7 @@ async function activeEvents(mintIds: string[], now: number) {
 
 export async function runNotifications(now = Date.now()) {
   const claims = await prisma.mintClaim.findMany({
-    where: { verifiedAt: { not: null }, paidUntil: { gt: new Date(now) } },
+    where: { verifiedAt: { not: null }, alerts: true, paidUntil: { gt: new Date(now) } },
     include: { operator: { include: { channels: true } } },
   });
   if (!claims.length) return { sent: 0 };

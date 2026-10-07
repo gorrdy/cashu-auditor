@@ -5,95 +5,139 @@ import { withWalletLock } from '../lock';
 import { errorMessage } from '../transfer';
 import { createHomeQuote, homeMint, qrSvg, redeemToken, settleQuote, type QuoteStore } from '../donate';
 import { homeMintUrl } from '../consolidate';
+import { SITE_URL } from '../site';
+import { sendToChannel } from '../notify/channels';
 import { recordRevenue } from './payout';
 
 export const PRICE_PER_MONTH = 1000;
-export const PERIODS = [1, 3, 6, 12];
-const MONTH_MS = 30 * DAY;
+export const DAY_MSAT = BigInt(Math.round((PRICE_PER_MONTH * 1000) / 30));
+export const TOPUP_MIN = 1000;
+export const TOPUP_MAX = 1_000_000;
+const LOW_DAYS = 3;
 
-async function extend(claimId: string, months: number) {
-  const claim = await prisma.mintClaim.findUnique({ where: { id: claimId }, select: { paidUntil: true } });
-  const from = Math.max(Date.now(), claim?.paidUntil?.getTime() ?? 0);
-  return prisma.mintClaim.update({ where: { id: claimId }, data: { paidUntil: new Date(from + months * MONTH_MS) } });
+const THOUSAND = BigInt(1000);
+
+export const msatToSat = (msat: bigint) => Number(msat / THOUSAND);
+
+export async function credit(operatorId: string, sat: number, kind: string, note: string, source: 'lightning' | 'token') {
+  await prisma.$transaction([
+    prisma.operator.update({ where: { id: operatorId }, data: { balanceMsat: { increment: BigInt(sat) * THOUSAND }, lowNotifiedAt: null } }),
+    prisma.balanceEntry.create({ data: { operatorId, amountMsat: BigInt(sat) * THOUSAND, kind, note } }),
+  ]);
+  await recordRevenue(null, sat, source);
+  await chargeDue(Date.now(), operatorId);
 }
 
-const claimStore: QuoteStore = {
-  status: async id => (await prisma.claimInvoice.findUnique({ where: { id }, select: { status: true } }))?.status,
-  expire: id => prisma.claimInvoice.update({ where: { id }, data: { status: 'expired' } }),
+const topupStore: QuoteStore = {
+  status: async id => (await prisma.topupInvoice.findUnique({ where: { id }, select: { status: true } }))?.status,
+  expire: id => prisma.topupInvoice.update({ where: { id }, data: { status: 'expired' } }),
   issue: async inv => {
-    const row = await prisma.claimInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } });
-    await extend(row.claimId, row.months);
-    await recordRevenue(row.claimId, row.amount, 'lightning');
+    const row = await prisma.topupInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } });
+    await credit(row.operatorId, row.amount, 'topup', 'Lightning top-up', 'lightning');
   },
 };
 
-async function ownedVerifiedClaim(operatorId: string, claimId: string) {
-  const claim = await prisma.mintClaim.findUnique({ where: { id: claimId } });
-  return claim && claim.operatorId === operatorId && claim.verifiedAt ? claim : null;
-}
-
-export async function createClaimInvoice(operatorId: string, claimId: string, months: number) {
-  if (!PERIODS.includes(months)) return { error: 'Invalid period' };
-  if (!(await ownedVerifiedClaim(operatorId, claimId))) return { error: 'Verify the mint first.' };
+export async function createTopupInvoice(operatorId: string, amount: number) {
+  if (!Number.isSafeInteger(amount) || amount < TOPUP_MIN || amount > TOPUP_MAX) return { error: `Top up between ${TOPUP_MIN.toLocaleString('en')} and ${TOPUP_MAX.toLocaleString('en')} sat.` };
   const home = homeMintUrl();
   if (!home) return { error: 'Payments are not available.' };
+  const open = await prisma.topupInvoice.count({ where: { operatorId, status: 'unpaid', expiresAt: { gt: new Date() } } });
+  if (open >= 5) return { error: 'Too many open invoices. Pay or wait for one to expire.' };
   try {
-    const amount = months * PRICE_PER_MONTH;
     const quote = await createHomeQuote(home, amount);
-    const row = await prisma.claimInvoice.create({ data: { claimId, quoteId: quote.quote, amount, months, request: quote.request, expiresAt: quote.expiresAt } });
+    const row = await prisma.topupInvoice.create({ data: { operatorId, quoteId: quote.quote, amount, request: quote.request, expiresAt: quote.expiresAt } });
     return { id: row.id, request: quote.request, amount, qr: await qrSvg(`lightning:${quote.request}`.toUpperCase()), expiresAt: quote.expiresAt.getTime() };
   } catch (error) {
     return { error: `Could not create an invoice: ${errorMessage(error)}` };
   }
 }
 
-export async function checkClaimInvoice(operatorId: string, id: string): Promise<'unpaid' | 'paid' | 'expired' | 'unknown'> {
-  const inv = await prisma.claimInvoice.findUnique({ where: { id }, include: { claim: { select: { operatorId: true } } } });
+export async function checkTopupInvoice(operatorId: string, id: string): Promise<'unpaid' | 'paid' | 'expired' | 'unknown'> {
+  const inv = await prisma.topupInvoice.findUnique({ where: { id } });
   const home = await homeMint();
-  if (!inv || !home || inv.claim.operatorId !== operatorId) return 'unknown';
+  if (!inv || !home || inv.operatorId !== operatorId) return 'unknown';
   if (inv.status === 'issued') return 'paid';
   if (inv.status === 'expired') return 'expired';
   try {
-    const state = await settleQuote(inv, home, false, claimStore);
-    if (state === 'paid') await withWalletLock('subscription', () => settleQuote(inv, home, true, claimStore)).catch(() => null);
+    const state = await settleQuote(inv, home, false, topupStore);
+    if (state === 'paid') await withWalletLock('topup', () => settleQuote(inv, home, true, topupStore)).catch(() => null);
     return state;
   } catch {
     return 'unpaid';
   }
 }
 
-export async function settleClaimInvoices() {
+export async function settleTopupInvoices() {
   const home = await homeMint();
   if (!home) return 0;
-  const open = await prisma.claimInvoice.findMany({ where: { status: 'unpaid', createdAt: { gte: new Date(Date.now() - 7 * DAY) } }, orderBy: { createdAt: 'asc' }, take: 20 });
+  const open = await prisma.topupInvoice.findMany({ where: { status: 'unpaid', createdAt: { gte: new Date(Date.now() - 7 * DAY) } }, orderBy: { createdAt: 'asc' }, take: 20 });
   let settled = 0;
   for (const inv of open) {
     try {
-      if ((await settleQuote(inv, home, true, claimStore)) === 'paid') settled++;
+      if ((await settleQuote(inv, home, true, topupStore)) === 'paid') settled++;
     } catch (error) {
-      console.error('settleClaimInvoices:', errorMessage(error));
+      console.error('settleTopupInvoices:', errorMessage(error));
     }
   }
   return settled;
 }
 
-export async function payClaimWithToken(operatorId: string, claimId: string, raw: string) {
-  if (!(await ownedVerifiedClaim(operatorId, claimId))) return { error: 'Verify the mint first.' };
+export async function topupWithToken(operatorId: string, raw: string) {
   let amount = 0;
   try {
     amount = Number(getTokenMetadata(raw.trim()).amount);
   } catch {
     return { error: 'Not a valid Cashu token.' };
   }
-  if (amount < PRICE_PER_MONTH) return { error: `A month costs ${PRICE_PER_MONTH} sat; this token holds ${amount} sat.` };
-  return redeemToken(raw.trim(), async (mintId, received) => {
-    const months = Math.floor(received / PRICE_PER_MONTH);
-    const extra = received - months * PRICE_PER_MONTH;
-    if (months > 0) {
-      await extend(claimId, months);
-      await recordRevenue(claimId, months * PRICE_PER_MONTH, 'token');
-    }
-    if (extra > 0) await prisma.donation.create({ data: { mintId, amount: extra } });
-    return `Received ${received} sat: ${months} month${months === 1 ? '' : 's'} added${extra ? `, ${extra} sat kept as a donation` : ''}.`;
+  if (amount < 100) return { error: 'Top up at least 100 sat.' };
+  return redeemToken(raw.trim(), async (_mintId, received) => {
+    await credit(operatorId, received, 'topup', 'Cashu token top-up', 'token');
+    return `Added ${received.toLocaleString('en')} sat to your balance.`;
   });
+}
+
+async function tell(operatorId: string, title: string, body: string) {
+  const channels = await prisma.notifyChannel.findMany({ where: { operatorId } });
+  for (const ch of channels) await sendToChannel(ch, { title, body, url: `${SITE_URL}/operators` });
+}
+
+export async function chargeDue(now = Date.now(), operatorId?: string) {
+  const claims = await prisma.mintClaim.findMany({
+    where: { verifiedAt: { not: null }, alerts: true, ...(operatorId ? { operatorId } : {}), OR: [{ paidUntil: null }, { paidUntil: { lt: new Date(now + 3_600_000) } }] },
+    include: { operator: { select: { id: true, balanceMsat: true, lowNotifiedAt: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  let charged = 0;
+  const paused = new Set<string>();
+  for (const claim of claims) {
+    const op = await prisma.operator.findUniqueOrThrow({ where: { id: claim.operatorId }, select: { balanceMsat: true } });
+    if (op.balanceMsat < DAY_MSAT) {
+      paused.add(claim.operatorId);
+      continue;
+    }
+    const from = Math.max(now, claim.paidUntil?.getTime() ?? 0);
+    await prisma.$transaction([
+      prisma.operator.update({ where: { id: claim.operatorId }, data: { balanceMsat: { decrement: DAY_MSAT } } }),
+      prisma.balanceEntry.create({ data: { operatorId: claim.operatorId, amountMsat: -DAY_MSAT, kind: 'charge', claimId: claim.id, note: 'Alerts for one day' } }),
+      prisma.mintClaim.update({ where: { id: claim.id }, data: { paidUntil: new Date(from + DAY) } }),
+    ]);
+    charged++;
+  }
+
+  const operators = await prisma.operator.findMany({
+    where: { claims: { some: { verifiedAt: { not: null }, alerts: true } }, ...(operatorId ? { id: operatorId } : {}) },
+    select: { id: true, balanceMsat: true, lowNotifiedAt: true, _count: { select: { claims: { where: { verifiedAt: { not: null }, alerts: true } } } } },
+  });
+  for (const op of operators) {
+    const perDay = DAY_MSAT * BigInt(op._count.claims);
+    if (op.lowNotifiedAt || perDay === BigInt(0)) continue;
+    if (paused.has(op.id)) {
+      await tell(op.id, 'Alerts paused', 'Your balance is empty, so alerts for your mints are paused. Top up to turn them back on.');
+      await prisma.operator.update({ where: { id: op.id }, data: { lowNotifiedAt: new Date(now) } });
+    } else if (op.balanceMsat < perDay * BigInt(LOW_DAYS)) {
+      await tell(op.id, 'Balance running low', `Your balance of ${msatToSat(op.balanceMsat)} sat covers less than ${LOW_DAYS} days of alerts. Top up to keep them running.`);
+      await prisma.operator.update({ where: { id: op.id }, data: { lowNotifiedAt: new Date(now) } });
+    }
+  }
+  return { charged, paused: paused.size };
 }

@@ -232,11 +232,15 @@ model Operator {
   lnKey     String?         @unique
   name      String?
   avatarSeed String?
+  balanceMsat BigInt        @default(0)
+  lowNotifiedAt DateTime?
   createdAt DateTime        @default(now())
   sessions  OperatorSession[]
   claims    MintClaim[]
   channels  NotifyChannel[]
   passkeys  Passkey[]
+  topups    TopupInvoice[]
+  ledger    BalanceEntry[]
 }
 
 model OperatorSession {
@@ -270,6 +274,7 @@ model MintClaim {
   code        String
   verifiedAt  DateTime?
   paidUntil   DateTime?
+  alerts      Boolean   @default(true)
   prefs       String?
   createdAt   DateTime  @default(now())
   invoices    ClaimInvoice[]
@@ -367,4 +372,31 @@ model Passkey {
   lastUsedAt DateTime?
 
   @@index([operatorId])
+}
+
+model TopupInvoice {
+  id         String   @id @default(cuid())
+  operatorId String
+  operator   Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  quoteId    String   @unique
+  amount     Int
+  request    String
+  status     String   @default("unpaid")
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+model BalanceEntry {
+  id          String   @id @default(cuid())
+  operatorId  String
+  operator    Operator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  amountMsat  BigInt
+  kind        String
+  claimId     String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([operatorId, createdAt])
 }

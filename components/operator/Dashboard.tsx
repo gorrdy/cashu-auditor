@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import CopyButton from '@/components/CopyButton';
 import {
-  addNostrChannel, checkSubscriptionInvoice, claimMint, createSubscriptionInvoice, logout, paySubscriptionWithToken,
-  removeChannel, removeClaim, savePrefs, savePushSubscription, sendTestNotification, telegramLink, verifyClaimAction,
+  addNostrChannel, checkTopup, claimMint, createTopup, logout, removeChannel, removeClaim, savePrefs, savePushSubscription,
+  sendTestNotification, setAlerts, telegramLink, topupToken, verifyClaimAction,
 } from '@/app/operators/actions';
 
 type Method = 'nostr' | 'node' | 'motd' | 'dns';
@@ -22,6 +22,7 @@ export type ClaimView = {
   verified: boolean;
   paidUntil: number | null;
   active: boolean;
+  alerts: boolean;
   prefs: Prefs;
   contacts: { nostr: string[]; email: string[] };
   lnPubkey: string | null;
@@ -30,7 +31,7 @@ export type ChannelView = { id: string; kind: string; label: string };
 type Available = { nostr: boolean; telegram: boolean; push: boolean; email: boolean };
 
 const METHOD_LABEL: Record<Method, string> = { nostr: 'Nostr contact', node: 'Lightning node', motd: 'Code in mint info', dns: 'DNS record' };
-const PERIODS = [1, 3, 6, 12];
+const TOPUPS = [1000, 5000, 10000, 30000];
 const PRICE = 1000;
 
 function Note({ r }: { r: { ok?: string; error?: string } | null }) {
@@ -108,19 +109,21 @@ function Verify({ claim, operatorNpub }: { claim: ClaimView; operatorNpub: strin
   );
 }
 
-function Subscription({ claim }: { claim: ClaimView }) {
+function Balance({ balance, mints }: { balance: number; mints: number }) {
   const router = useRouter();
-  const [months, setMonths] = useState(1);
+  const [amount, setAmount] = useState(5000);
   const [invoice, setInvoice] = useState<{ id: string; request: string; qr: string; amount: number } | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [token, setToken] = useState('');
   const [result, setResult] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
+  const perDay = (mints * PRICE) / 30;
+  const days = perDay ? Math.floor(balance / perDay) : null;
 
   useEffect(() => {
     if (!invoice) return;
     const t = setInterval(async () => {
-      const s = await checkSubscriptionInvoice(invoice.id).catch(() => 'unpaid');
+      const s = await checkTopup(invoice.id).catch(() => 'unpaid');
       if (s === 'paid' || s === 'expired') {
         setState(s);
         clearInterval(t);
@@ -130,12 +133,17 @@ function Subscription({ claim }: { claim: ClaimView }) {
     return () => clearInterval(t);
   }, [invoice, router]);
 
-  const active = claim.active;
   return (
-    <div className="op-sub">
-      <p className="op-sub-state">
-        {active ? <>Alerts active until <strong>{new Date(claim.paidUntil!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></> : <>Alerts are <strong>not active</strong>. {PRICE.toLocaleString('en')} sat per month.</>}
-      </p>
+    <div className="card op-balance">
+      <div className="op-balance-head">
+        <div>
+          <p className="small soft" style={{ margin: 0 }}>Balance</p>
+          <p className="op-balance-value">{balance.toLocaleString('en')} <span>sat</span></p>
+        </div>
+        <p className="small soft op-balance-rate">
+          {mints ? <>{mints} {mints === 1 ? 'mint' : 'mints'} with alerts · {Math.round(perDay)} sat a day{days !== null && <> · lasts about <strong>{days} {days === 1 ? 'day' : 'days'}</strong></>}</> : <>{PRICE.toLocaleString('en')} sat per mint per month, charged daily from this balance.</>}
+        </p>
+      </div>
       {invoice && state !== 'paid' ? (
         <div className="donate-pay">
           <div className="qr" role="img" aria-label="Lightning invoice QR code" dangerouslySetInnerHTML={{ __html: invoice.qr }} />
@@ -149,26 +157,44 @@ function Subscription({ claim }: { claim: ClaimView }) {
         </div>
       ) : (
         <>
-          <div className="op-periods" role="group" aria-label="Period">
-            {PERIODS.map(p => (
-              <button key={p} type="button" className="amount-tile" aria-pressed={months === p} onClick={() => setMonths(p)}>
-                <b>{p} {p === 1 ? 'month' : 'months'}</b><span>{(p * PRICE).toLocaleString('en')} sat</span>
+          <div className="op-periods" role="group" aria-label="Top-up amount">
+            {TOPUPS.map(a => (
+              <button key={a} type="button" className="amount-tile" aria-pressed={amount === a} onClick={() => setAmount(a)}>
+                <b>{a.toLocaleString('en')} sat</b><span>{mints ? `≈ ${Math.floor(a / (perDay || 1))} days` : `${Math.floor(a / PRICE)} mint-months`}</span>
               </button>
             ))}
           </div>
           <button type="button" className="btn" disabled={pending} onClick={() => start(async () => {
-            const r = await createSubscriptionInvoice(claim.id, months);
+            const r = await createTopup(amount);
             if ('error' in r && r.error) setResult({ error: r.error });
             else { setState(null); setInvoice(r as { id: string; request: string; qr: string; amount: number }); }
-          })}>{pending ? 'Creating invoice…' : `Pay ${(months * PRICE).toLocaleString('en')} sat with Lightning`}</button>
+          })}>{pending ? 'Creating invoice…' : `Top up ${amount.toLocaleString('en')} sat with Lightning`}</button>
           <details className="op-token">
-            <summary>Pay with a Cashu token</summary>
+            <summary>Top up with a Cashu token</summary>
             <textarea className="field mono" rows={2} placeholder="cashuB…" value={token} onChange={e => setToken(e.target.value)} />
-            <button type="button" className="btn secondary" disabled={pending || !token.trim()} onClick={() => start(async () => { setResult(await paySubscriptionWithToken(claim.id, token)); setToken(''); })}>Redeem token</button>
+            <button type="button" className="btn secondary" disabled={pending || !token.trim()} onClick={() => start(async () => { setResult(await topupToken(token)); setToken(''); router.refresh(); })}>Redeem token</button>
           </details>
         </>
       )}
-      {state === 'paid' && <p className="donate-ok">Paid. Thank you.</p>}
+      {state === 'paid' && <p className="donate-ok">Paid. Your balance is updated.</p>}
+      <Note r={result} />
+    </div>
+  );
+}
+
+function AlertsToggle({ claim }: { claim: ClaimView }) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<{ ok?: string; error?: string } | null>(null);
+  const covered = claim.paidUntil ? new Date(claim.paidUntil).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <div className="op-sub">
+      <label className="op-check op-switch">
+        <input type="checkbox" checked={claim.alerts} disabled={pending} onChange={e => start(async () => setResult(await setAlerts(claim.id, e.target.checked)))} />
+        Alerts for this mint
+      </label>
+      <p className="small soft" style={{ margin: 0 }}>
+        {!claim.alerts ? 'Off. This mint is not charged.' : claim.active ? <>Covered until {covered}. About {Math.round(PRICE / 30)} sat a day from your balance.</> : 'Paused until you top up your balance.'}
+      </p>
       <Note r={result} />
     </div>
   );
@@ -220,7 +246,7 @@ function ClaimCard({ claim, operatorNpub }: { claim: ClaimView; operatorNpub: st
       </div>
       {!claim.verified ? <Verify claim={claim} operatorNpub={operatorNpub} /> : (
         <>
-          <Subscription claim={claim} />
+          <AlertsToggle claim={claim} />
           <h3 className="op-sub-title">Alerts</h3>
           <Preferences claim={claim} />
         </>
@@ -318,8 +344,9 @@ function Channels({ channels, available, vapidKey }: { channels: ChannelView[]; 
   );
 }
 
-export default function Dashboard({ who, claims, channels, options, preselect, available, vapidKey, operatorNpub }: {
+export default function Dashboard({ who, claims, channels, options, preselect, available, vapidKey, operatorNpub, balance }: {
   who: string;
+  balance: number;
   claims: ClaimView[];
   channels: ChannelView[];
   options: { id: string; label: string }[];
@@ -335,6 +362,9 @@ export default function Dashboard({ who, claims, channels, options, preselect, a
         <span className="small soft">Signed in as <span className="mono">{who}</span></span>
         <button type="button" className="linkish" disabled={pending} onClick={() => start(() => logout())}>Sign out</button>
       </div>
+      <section className="section">
+        <Balance balance={balance} mints={claims.filter(c => c.verified && c.alerts).length} />
+      </section>
       <section className="section" id="mints">
         <div className="section-head"><h2 className="h2">Your mints</h2></div>
         <div className="op-grid">
