@@ -8,7 +8,7 @@ import {
   removeChannel, removeClaim, savePrefs, savePushSubscription, sendTestNotification, telegramLink, verifyClaimAction,
 } from '@/app/operators/actions';
 
-type Method = 'nostr' | 'email' | 'motd' | 'dns';
+type Method = 'nostr' | 'node' | 'email' | 'motd' | 'dns';
 type Prefs = { events: Record<string, boolean>; offlineMinutes: number };
 export type ClaimView = {
   id: string;
@@ -23,11 +23,12 @@ export type ClaimView = {
   active: boolean;
   prefs: Prefs;
   contacts: { nostr: string[]; email: string[] };
+  lnPubkey: string | null;
 };
 export type ChannelView = { id: string; kind: string; label: string };
 type Available = { nostr: boolean; telegram: boolean; push: boolean; email: boolean };
 
-const METHOD_LABEL: Record<Method, string> = { nostr: 'Nostr contact', email: 'Email contact', motd: 'Code in mint info', dns: 'DNS record' };
+const METHOD_LABEL: Record<Method, string> = { nostr: 'Nostr contact', node: 'Lightning node', email: 'Email contact', motd: 'Code in mint info', dns: 'DNS record' };
 const PERIODS = [1, 3, 6, 12];
 const PRICE = 1000;
 
@@ -49,14 +50,15 @@ function Copy({ text }: { text: string }) {
 function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; operatorNpub: string | null; email: boolean }) {
   const [method, setMethod] = useState<Method>(claim.method);
   const [email, setEmail] = useState(claim.contacts.email[0] ?? '');
+  const [signature, setSignature] = useState('');
   const [result, setResult] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
   const code = `cashu-audit-verify=${claim.code}`;
-  const run = () => start(async () => setResult(await verifyClaimAction(claim.id, method, email)));
+  const run = () => start(async () => setResult(await verifyClaimAction(claim.id, method, method === 'node' ? signature : email)));
   return (
     <div className="op-verify">
       <div className="tabs op-tabs" role="tablist" aria-label="Verification method">
-        {(['nostr', 'email', 'motd', 'dns'] as Method[]).filter(m => m !== 'email' || emailOn).map(m => (
+        {(['nostr', 'node', 'email', 'motd', 'dns'] as Method[]).filter(m => (m !== 'email' || emailOn) && (m !== 'node' || !!claim.lnPubkey)).map(m => (
           <button key={m} type="button" role="tab" aria-selected={method === m} onClick={() => { setMethod(m); setResult(null); }}>
             {METHOD_LABEL[m]}{m === claim.method && <span className="op-rec">recommended</span>}
           </button>
@@ -68,6 +70,17 @@ function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; ope
             <p>Your npub must be listed as a <span className="mono">nostr</span> contact in the mint&apos;s <span className="mono">/v1/info</span>.</p>
             {claim.contacts.nostr.length ? <p className="small soft">Listed now: {claim.contacts.nostr.map(n => <span key={n} className="mono"> {n.slice(0, 12)}…</span>)}</p> : <p className="small soft">The mint lists no nostr contact yet. Add yours to the mint&apos;s info, or use another method.</p>}
             {!operatorNpub && <p className="small soft">Sign in with Nostr to use this method.</p>}
+          </>
+        )}
+        {method === 'node' && claim.lnPubkey && (
+          <>
+            <p>Sign the code with the Lightning node that receives the mint&apos;s payments, then paste the signature.</p>
+            <p className="small soft">The mint&apos;s invoices come from node <span className="mono">{claim.lnPubkey.slice(0, 20)}…</span></p>
+            <p className="small soft">LND</p>
+            <Copy text={`lncli signmessage ${code}`} />
+            <p className="small soft">Core Lightning (use the zbase value)</p>
+            <Copy text={`lightning-cli signmessage ${code}`} />
+            <textarea className="field mono" rows={2} placeholder="Signature" value={signature} onChange={e => setSignature(e.target.value)} aria-label="Signature" />
           </>
         )}
         {method === 'email' && (
@@ -96,7 +109,7 @@ function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; ope
             <Copy text={code} />
           </>
         )}
-        <button type="button" className="btn" disabled={pending || (method === 'nostr' && !operatorNpub) || (method === 'email' && !email)} onClick={run}>
+        <button type="button" className="btn" disabled={pending || (method === 'nostr' && !operatorNpub) || (method === 'email' && !email) || (method === 'node' && !signature.trim())} onClick={run}>
           {pending ? 'Checking…' : method === 'email' ? 'Send confirmation link' : 'Verify'}
         </button>
         <Note r={result} />

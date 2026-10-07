@@ -729,7 +729,8 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .op-status.is-on { color: var(--good); background: rgb(12 163 12 / 0.12); }
 .op-status.is-off { color: var(--accent-ink); background: var(--accent-wash); }
 .op-status.is-pending { color: var(--ink-2); background: var(--surface-2); }
-.op-tabs { grid-template-columns: repeat(2, 1fr); }
+.op-tabs { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); border-radius: 16px; }
+.op-tabs button { border-radius: 12px !important; }
 .op-tabs button { flex-direction: column; gap: 0; height: auto; padding: 8px 6px; font-size: 13px; line-height: 18px; }
 .op-rec { font-size: 10px; line-height: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent-ink); }
 .op-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; font-size: 14px; }

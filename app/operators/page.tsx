@@ -40,7 +40,7 @@ export default async function Operators({ searchParams }: { searchParams: Promis
     const [claims, channels, mints] = await Promise.all([
       prisma.mintClaim.findMany({ where: { operatorId: operator.id }, orderBy: { createdAt: 'asc' } }),
       prisma.notifyChannel.findMany({ where: { operatorId: operator.id }, orderBy: { createdAt: 'asc' } }),
-      prisma.mint.findMany({ where: { aliasOfId: null, isTest: false }, select: { id: true, name: true, url: true, contact: true }, orderBy: { url: 'asc' } }),
+      prisma.mint.findMany({ where: { aliasOfId: null, isTest: false }, select: { id: true, name: true, url: true, contact: true, lnPubkey: true }, orderBy: { url: 'asc' } }),
     ]);
     const byId = new Map(mints.map(m => [m.id, m]));
     const views: ClaimView[] = claims.flatMap(c => {
@@ -49,7 +49,7 @@ export default async function Operators({ searchParams }: { searchParams: Promis
       return [{
         id: c.id, mintId: c.mintId, name: m.name ?? hostOf(m.url), url: m.url, host: new URL(m.url).hostname,
         method: c.method as ClaimView['method'], code: c.code, verified: !!c.verifiedAt, paidUntil: c.paidUntil?.getTime() ?? null, active: isActive(c.paidUntil),
-        prefs: parsePrefs(c.prefs), contacts: (() => { const k = mintContacts(m.contact); return { nostr: k.nostr.map(npubOf), email: k.email }; })(),
+        prefs: parsePrefs(c.prefs), lnPubkey: m.lnPubkey, contacts: (() => { const k = mintContacts(m.contact); return { nostr: k.nostr.map(npubOf), email: k.email }; })(),
       }];
     });
     const label = (kind: string, target: string, l: string | null) => l && kind !== 'nostr' ? l : kind === 'nostr' ? `${npubOf(target).slice(0, 16)}…` : kind === 'push' ? 'Device' : target;

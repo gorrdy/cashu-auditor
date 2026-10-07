@@ -5,9 +5,10 @@ import { mintPage, SITE_URL } from '../site';
 import { emailEnabled, sendEmail } from '../notify/email';
 import { createChallenge, randomToken } from './session';
 import { toHexPubkey } from './nostr';
+import { recoverNodeKey } from './nodeSig';
 
-export type ClaimMethod = 'nostr' | 'email' | 'motd' | 'dns';
-export const METHODS: ClaimMethod[] = ['nostr', 'email', 'motd', 'dns'];
+export type ClaimMethod = 'nostr' | 'node' | 'email' | 'motd' | 'dns';
+export const METHODS: ClaimMethod[] = ['nostr', 'node', 'email', 'motd', 'dns'];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,8 +32,9 @@ export function mintContacts(contact: string | null) {
 
 export const verifyCode = (code: string) => `cashu-audit-verify=${code}`;
 
-export function recommendedMethod(contacts: ReturnType<typeof mintContacts>, operatorPubkey: string | null): ClaimMethod {
+export function recommendedMethod(contacts: ReturnType<typeof mintContacts>, operatorPubkey: string | null, lnPubkey: string | null = null): ClaimMethod {
   if (operatorPubkey && contacts.nostr.includes(operatorPubkey)) return 'nostr';
+  if (lnPubkey) return 'node';
   if (contacts.email.length && emailEnabled()) return 'email';
   return 'motd';
 }
@@ -44,8 +46,8 @@ export async function startClaim(operatorId: string, mintId: string) {
   const existing = await prisma.mintClaim.findUnique({ where: { operatorId_mintId: { operatorId, mintId: id } } });
   if (existing) return { claim: existing };
   const operator = await prisma.operator.findUnique({ where: { id: operatorId }, select: { pubkey: true } });
-  const m = await prisma.mint.findUnique({ where: { id }, select: { contact: true } });
-  const method = recommendedMethod(mintContacts(m?.contact ?? null), operator?.pubkey ?? null);
+  const m = await prisma.mint.findUnique({ where: { id }, select: { contact: true, lnPubkey: true } });
+  const method = recommendedMethod(mintContacts(m?.contact ?? null), operator?.pubkey ?? null, m?.lnPubkey ?? null);
   const claim = await prisma.mintClaim.create({ data: { operatorId, mintId: id, method, code: randomToken(12) } });
   return { claim };
 }
@@ -54,10 +56,10 @@ async function markVerified(claimId: string, method: ClaimMethod) {
   await prisma.mintClaim.update({ where: { id: claimId }, data: { verifiedAt: new Date(), method } });
 }
 
-export async function verifyClaim(operatorId: string, claimId: string, method: ClaimMethod, email?: string): Promise<{ ok?: string; error?: string }> {
+export async function verifyClaim(operatorId: string, claimId: string, method: ClaimMethod, input?: string): Promise<{ ok?: string; error?: string }> {
   const claim = await prisma.mintClaim.findUnique({ where: { id: claimId } });
   if (!claim || claim.operatorId !== operatorId) return { error: 'Claim not found' };
-  const mint = await prisma.mint.findUnique({ where: { id: claim.mintId }, select: { url: true, contact: true, name: true } });
+  const mint = await prisma.mint.findUnique({ where: { id: claim.mintId }, select: { url: true, contact: true, name: true, lnPubkey: true } });
   if (!mint) return { error: 'Mint not found' };
   const contacts = mintContacts(mint.contact);
 
@@ -73,7 +75,7 @@ export async function verifyClaim(operatorId: string, claimId: string, method: C
 
   if (method === 'email') {
     if (!emailEnabled()) return { error: 'Email verification is not available yet.' };
-    const to = email?.trim().toLowerCase();
+    const to = input?.trim().toLowerCase();
     if (!to || !contacts.email.includes(to)) return { error: 'Choose an email address listed in the mint\'s /v1/info.' };
     const token = await createChallenge('claim-email', { operatorId, claimId: claim.id }, 24 * 3_600_000);
     await sendEmail(
@@ -82,6 +84,15 @@ export async function verifyClaim(operatorId: string, claimId: string, method: C
       `Someone asked to manage ${mint.url} on Cashu Mints Auditor.\n\nIf it was you, confirm here:\n${SITE_URL}/api/operator/verify-email?token=${token}\n\nIf not, ignore this email.\n\n${mintPage(claim.mintId)}`
     );
     return { ok: `We sent a confirmation link to ${to}.` };
+  }
+
+  if (method === 'node') {
+    if (!mint.lnPubkey) return { error: 'The Lightning node of this mint is not known yet.' };
+    const key = recoverNodeKey(verifyCode(claim.code), input ?? '');
+    if (!key) return { error: 'Paste the signature that signmessage returned.' };
+    if (key !== mint.lnPubkey) return { error: 'The signature is valid but comes from another node than the one in the mint\'s invoices.' };
+    await markVerified(claim.id, 'node');
+    return { ok: 'Verified with the mint\'s Lightning node.' };
   }
 
   if (method === 'motd') {
