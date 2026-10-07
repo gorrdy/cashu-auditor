@@ -325,3 +325,31 @@ model NotifyLog {
 
   @@index([claimId, timestamp])
 }
+
+model RevenueEntry {
+  id        String   @id @default(cuid())
+  claimId   String?
+  amount    Int
+  source    String
+  payoutId  String?
+  createdAt DateTime @default(now())
+
+  @@index([payoutId])
+}
+
+model Payout {
+  id          String   @id @default(cuid())
+  address     String
+  amount      Int
+  fee         Int      @default(0)
+  feeReserve  Int      @default(0)
+  invoice     String
+  meltQuoteId String
+  status      String
+  error       String?
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}

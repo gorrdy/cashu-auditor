@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { paymentHashOf, preimageMatches } from '@/lib/bolt11';
+import { paymentHashOf, preimageMatches, amountMsat } from '@/lib/bolt11';
 
 const BOLT11_SPEC_EXAMPLE =
   'lnbc1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq9qrsgq357wnc5r2ueh7ck6q93dj32dlqnls087fxdwk8qakdyafkq3yap9us6v52vjjsrvywa6rt52cm9r9zqt8r2t7mlcwspyetp5h2tztugp9lfyql';
@@ -18,5 +18,14 @@ describe('bolt11', () => {
   it('is unknown without a preimage', () => {
     expect(preimageMatches('00'.repeat(32), null)).toBeNull();
     expect(preimageMatches(null, 'ab'.repeat(32))).toBeNull();
+  });
+});
+
+describe('amountMsat', () => {
+  it('reads the amount from the human readable part', () => {
+    expect(amountMsat('lnbc10u1pxyz')).toBe(1_000_000);
+    expect(amountMsat('lnbc2500n1pxyz')).toBe(250_000);
+    expect(amountMsat('lnbc1m1pxyz')).toBe(100_000_000);
+    expect(amountMsat('lnbc1pxyz')).toBeNull();
   });
 });

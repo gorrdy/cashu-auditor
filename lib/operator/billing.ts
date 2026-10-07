@@ -5,6 +5,7 @@ import { withWalletLock } from '../lock';
 import { errorMessage } from '../transfer';
 import { createHomeQuote, homeMint, qrSvg, redeemToken, settleQuote, type QuoteStore } from '../donate';
 import { homeMintUrl } from '../consolidate';
+import { recordRevenue } from './payout';
 
 export const PRICE_PER_MONTH = 1000;
 export const PERIODS = [1, 3, 6, 12];
@@ -22,6 +23,7 @@ const claimStore: QuoteStore = {
   issue: async inv => {
     const row = await prisma.claimInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } });
     await extend(row.claimId, row.months);
+    await recordRevenue(row.claimId, row.amount, 'lightning');
   },
 };
 
@@ -87,7 +89,10 @@ export async function payClaimWithToken(operatorId: string, claimId: string, raw
   return redeemToken(raw.trim(), async (mintId, received) => {
     const months = Math.floor(received / PRICE_PER_MONTH);
     const extra = received - months * PRICE_PER_MONTH;
-    if (months > 0) await extend(claimId, months);
+    if (months > 0) {
+      await extend(claimId, months);
+      await recordRevenue(claimId, months * PRICE_PER_MONTH, 'token');
+    }
     if (extra > 0) await prisma.donation.create({ data: { mintId, amount: extra } });
     return `Received ${received} sat: ${months} month${months === 1 ? '' : 's'} added${extra ? `, ${extra} sat kept as a donation` : ''}.`;
   });

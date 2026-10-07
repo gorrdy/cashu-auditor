@@ -64,7 +64,7 @@ export function dleqStatus(wallet: Wallet, proofs: CashuProof[]): 'valid' | 'inv
   }
 }
 
-const toCashu = (p: StoredProof): ProofLike => ({ id: p.keysetId, amount: p.amount, secret: p.secret, C: p.C });
+export const toCashu = (p: StoredProof): ProofLike => ({ id: p.keysetId, amount: p.amount, secret: p.secret, C: p.C });
 const sum = (proofs: { amount: AmountLike }[]) => proofs.reduce((s, p) => s + num(p.amount), 0);
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 

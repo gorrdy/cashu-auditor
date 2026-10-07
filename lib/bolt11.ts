@@ -88,3 +88,12 @@ export function invoiceNode(invoice: string): { payee: string; hints: RouteHop[]
   }
   return { payee, hints };
 }
+
+export function amountMsat(invoice: string): number | null {
+  const m = invoice.trim().toLowerCase().match(/^ln(?:bc|tb|bcrt|tbs)(\d+)([munp]?)1/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const factor = { '': 1e11, m: 1e8, u: 1e5, n: 1e2, p: 0.1 }[m[2] as '' | 'm' | 'u' | 'n' | 'p'];
+  const msat = n * factor;
+  return Number.isSafeInteger(Math.round(msat)) ? Math.round(msat) : null;
+}
