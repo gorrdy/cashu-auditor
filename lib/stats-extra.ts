@@ -120,6 +120,24 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
       return first < 0 ? [] : days.slice(first).map(day => ({ day, score: rows.get(day) ?? null }));
     })(),
     backoff: backoff.map.get(id) ?? null,
+    money: await (async () => {
+      const [unissued, reserved] = await Promise.all([
+        prisma.swap.aggregate({ where: { destMintId: id, stage: 'mint', status: { not: 'success' }, preimageOk: true }, _sum: { amount: true }, _count: true, _min: { timestamp: true } }),
+        prisma.proof.findMany({ where: { mintId: id, state: 'reserved' }, select: { amount: true, swapId: true } }),
+      ]);
+      const old = await prisma.swap.findMany({
+        where: { id: { in: [...new Set(reserved.map(p => p.swapId ?? ''))] }, timestamp: { lt: new Date(now - 3_600_000) } },
+        select: { id: true, timestamp: true },
+      });
+      const oldIds = new Set(old.map(o => o.id));
+      return {
+        unissued: { sat: unissued._sum.amount ?? 0, count: unissued._count, since: unissued._min.timestamp?.getTime() ?? null },
+        stuck: {
+          sat: reserved.filter(p => p.swapId && oldIds.has(p.swapId)).reduce((sum, p) => sum + p.amount, 0),
+          since: old.length ? Math.min(...old.map(o => o.timestamp.getTime())) : null,
+        },
+      };
+    })(),
     lightning: await (async () => {
       const self = await prisma.mint.findUnique({ where: { id }, select: { lnPubkey: true, lnNode: true } });
       const [peers, received, incoming] = await Promise.all([

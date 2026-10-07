@@ -126,7 +126,23 @@ function checkLabel(c: CheckSummary | undefined, now: number) {
   return <span className="soft small">{fmtDateTime(c.timestamp)} · last 30 days {c.recentOk} ok, {c.recentFail} failed{c.ms != null ? ` · ${fmtMs(c.ms)}` : ''}{now - c.timestamp > 2 * DAY ? ' · stale' : ''}</span>;
 }
 
-export function IntegrityCard({ now, checks, lost, dleq, tlsIssuer, tlsExpiresAt, pubkey, clockSkewMs }: {
+export type MoneyIssues = { unissued: { sat: number; count: number; since: number | null }; stuck: { sat: number; since: number | null } };
+
+export function MoneyAlert({ money }: { money: MoneyIssues }) {
+  if (!money.unissued.sat && !money.stuck.sat) return null;
+  return (
+    <div className="money-alert" role="note">
+      <StateIcon kind="error" />
+      <div>
+        {money.unissued.sat > 0 && <p><strong>{fmtSat(money.unissued.sat)} paid to this mint without ecash in return.</strong> The audit paid {money.unissued.count} Lightning invoice{money.unissued.count === 1 ? '' : 's'} of this mint{money.unissued.since ? ` since ${fmtDate(new Date(money.unissued.since))}` : ''}, got a valid preimage, but the mint never issued the ecash.</p>}
+        {money.stuck.sat > 0 && <p><strong>{fmtSat(money.stuck.sat)} stuck in outgoing payments.</strong> Payouts from this mint{money.stuck.since ? ` since ${fmtDate(new Date(money.stuck.since))}` : ''} are still pending, so the audit cannot use or recover these sats yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+export function IntegrityCard({ now, checks, lost, dleq, tlsIssuer, tlsExpiresAt, pubkey, clockSkewMs, money }: {
+  money: MoneyIssues;
   now: number;
   checks: Record<string, CheckSummary>;
   lost: { sat: number; proofs: number };
@@ -154,6 +170,8 @@ export function IntegrityCard({ now, checks, lost, dleq, tlsIssuer, tlsExpiresAt
             </div>
           ) : checkLabel(undefined, now)}
         </Row>
+        {money.unissued.sat > 0 && <Row label="Not issued"><StateBadge kind="error" label={`${fmtSat(money.unissued.sat)} paid, no ecash (${money.unissued.count})`} /></Row>}
+        {money.stuck.sat > 0 && <Row label="Stuck payouts"><StateBadge kind="warn" label={`${fmtSat(money.stuck.sat)} pending`} /></Row>}
         {lost.sat > 0 && <Row label="Lost"><StateBadge kind="error" label={`${fmtSat(lost.sat)} in ${lost.proofs} proofs spent without us`} /></Row>}
         <Row label="Internal swap">
           {st ? (

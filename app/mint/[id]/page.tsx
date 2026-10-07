@@ -11,7 +11,7 @@ import StatusBars, { StatusTable } from '@/components/StatusBars';
 import LatencyChart from '@/components/LatencyChart';
 import SwapTable from '@/components/SwapTable';
 import CopyField from '@/components/CopyField';
-import { EventsCard, IntegrityCard, LightningCard, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
+import { EventsCard, IntegrityCard, LightningCard, MoneyAlert, NetworkCard, PayoutsCard, ReviewsCard, SpecCard } from '@/components/MintSections';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import ScoreTrend from '@/components/ScoreTrend';
@@ -89,6 +89,7 @@ export default async function MintPage({ params, searchParams }: Props) {
         </div>
       </section>
 
+      <MoneyAlert money={x.money} />
       {mint.description && <p className="soft" style={{ maxWidth: 720, marginTop: 16 }}>{mint.description}</p>}
       {mint.isTest && (
         <p className="small" style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -299,6 +300,7 @@ export default async function MintPage({ params, searchParams }: Props) {
           tlsExpiresAt={mint.tlsExpiresAt}
           pubkey={mint.pubkey}
           clockSkewMs={x.clockSkewMs ?? mint.clockSkewMs}
+          money={x.money}
         />
         <NetworkCard mint={mint} tor={x.checks.tor} timings={x.timings} />
       </section>

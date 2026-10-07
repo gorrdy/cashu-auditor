@@ -810,3 +810,7 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .op-balance-rate { margin: 0; max-width: 420px; }
 .op-balance .btn { align-self: flex-start; }
 .op-switch { font-weight: 600; }
+.money-alert { display: flex; gap: 12px; align-items: flex-start; margin-top: 20px; padding: 16px 18px; border-radius: 16px; background: rgb(208 59 59 / 0.08); border: 1px solid rgb(208 59 59 / 0.25); max-width: 860px; }
+.money-alert svg { flex: none; margin-top: 3px; }
+.money-alert p { margin: 0; font-size: 14px; line-height: 21px; }
+.money-alert p + p { margin-top: 8px; }
