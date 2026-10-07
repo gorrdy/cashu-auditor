@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { logout } from '@/app/operators/actions';
 
 const LINKS = [
   { href: '/', label: 'Mints' },
@@ -13,9 +14,10 @@ const LINKS = [
   { href: '/operators', label: 'For operators' },
 ];
 
-export default function MobileMenu() {
+export default function MobileMenu({ signedIn }: { signedIn: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,6 +50,11 @@ export default function MobileMenu() {
               {l.label}
             </Link>
           ))}
+          <span className="menu-sep" aria-hidden="true" />
+          <Link href="/operators" onClick={() => setOpen(false)}>{signedIn ? 'Your account' : 'Sign in'}</Link>
+          {signedIn && (
+            <button type="button" className="menu-item" onClick={async () => { setOpen(false); await logout(); router.refresh(); }}>Sign out</button>
+          )}
         </nav>
       )}
     </div>

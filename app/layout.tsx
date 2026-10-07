@@ -7,6 +7,7 @@ import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
 import MobileMenu from '@/components/MobileMenu';
 import MenuCloser from '@/components/MenuCloser';
+import { currentOperator } from '@/lib/operator/session';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
@@ -33,6 +34,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
   const cashu = await cashuRequestWithQr();
+  const signedIn = !!(await currentOperator());
   return (
     <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
@@ -50,8 +52,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <Link href="/operators" className="nav-optional nav-wide">Operators</Link>
+              <Link href="/operators" className="nav-optional nav-wide nav-account">{signedIn ? 'Account' : 'Sign in'}</Link>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
-              <MobileMenu />
+              <MobileMenu signedIn={signedIn} />
             </nav>
           </div>
         </header>

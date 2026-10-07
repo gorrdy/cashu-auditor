@@ -770,3 +770,11 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .mc-title .new-chip { margin-right: 0; }
 .rowlink .new-chip { margin: 0 6px 0 0; }
 .eyebrow .new-chip { letter-spacing: 0.05em; }
+.nav .nav-account { padding: 6px 14px; border-radius: 999px; background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
+.nav .nav-account:hover { text-decoration: none; background: var(--accent); color: var(--on-accent); }
+.menu-sep { height: 1px; margin: 6px 8px; background: var(--line); }
+.menu-panel .menu-item { padding: 10px 14px; border: 0; border-radius: 10px; background: transparent; text-align: left; font: inherit; font-size: 15px; font-weight: 500; color: var(--ink-2); cursor: pointer; }
+.menu-panel .menu-item:hover { background: var(--surface-2); }
+@media (max-width: 719px) { .nav-optional { display: none; } }
+@media (max-width: 399px) { .nav .live { display: none; } .wordmark { font-size: 15px; gap: 6px; } .nav { gap: 8px; } .nav-donate { padding: 0 12px; } }
+@media (max-width: 359px) { .wordmark span { display: none; } }
