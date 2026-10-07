@@ -7,6 +7,7 @@ import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
 import MobileMenu from '@/components/MobileMenu';
 import MenuCloser from '@/components/MenuCloser';
+import AccountMenu from '@/components/AccountMenu';
 import UpdateBanner from '@/components/UpdateBanner';
 import { buildVersion } from '@/lib/version';
 import { currentOperator } from '@/lib/operator/session';
@@ -55,7 +56,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <Link href="/operators" className="nav-optional nav-wide">Operators</Link>
-              <Link href="/operators" className="nav-optional nav-wide nav-account">{signedIn ? 'Account' : 'Sign in'}</Link>
+              <span className="nav-optional"><AccountMenu signedIn={signedIn} /></span>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
               <MobileMenu signedIn={signedIn} />
             </nav>

@@ -781,3 +781,11 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .update-banner { position: sticky; top: 0; z-index: 70; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; padding: 10px 16px; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; text-align: center; }
 .update-banner button { height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--on-accent); color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 @media (prefers-reduced-motion: no-preference) { .update-banner { animation: fade-in .2s ease-out; } }
+.account-menu { position: relative; }
+.account-menu summary.nav-account { list-style: none; cursor: pointer; }
+.account-menu summary.nav-account::-webkit-details-marker { display: none; }
+.account-menu > summary.nav-account { border: 0; padding: 6px 14px; font-size: 14px; line-height: 20px; font-weight: 600; background: var(--accent-wash); color: var(--accent-ink); }
+.account-menu > summary.nav-account::after { color: inherit; }
+.account-menu .filter-list { right: 0; left: auto; min-width: 200px; }
+.account-menu .menu-item { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: 4px; background: transparent; text-align: left; font: inherit; font-size: 14px; color: var(--ink); cursor: pointer; }
+.account-menu .menu-item:hover { background: var(--surface-2); }
