@@ -1,0 +1,15 @@
+[Unit]
+Description=Cashu Audit dev: only the reverse proxy may reach the dev app port
+Before=cashu-auditor-dev.service
+After=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/cashu-auditor/dev.env
+ExecStart=/bin/sh -c 'iptables -t raw -C PREROUTING -p tcp -d ${BIND_HOST} --dport ${PORT} ! -s ${PROXY_IP} ! -i lo -j DROP 2>/dev/null || iptables -t raw -I PREROUTING -p tcp -d ${BIND_HOST} --dport ${PORT} ! -s ${PROXY_IP} ! -i lo -j DROP'
+ExecStop=/bin/sh -c 'iptables -t raw -D PREROUTING -p tcp -d ${BIND_HOST} --dport ${PORT} ! -s ${PROXY_IP} ! -i lo -j DROP 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target

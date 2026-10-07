@@ -29,9 +29,12 @@ const jetbrains = JetBrains_Mono({
   weight: ['400', '500'],
 });
 
+const DEV = process.env.APP_ENV === 'dev';
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: 'Cashu Mints Auditor', template: '%s · Cashu Mints Auditor' },
+  title: DEV ? { default: '[dev] Cashu Mints Auditor', template: '[dev] %s · Cashu Mints Auditor' } : { default: 'Cashu Mints Auditor', template: '%s · Cashu Mints Auditor' },
+  ...(DEV ? { robots: { index: false, follow: false } } : {}),
   manifest: '/manifest.webmanifest',
   description: 'Independent proof that Cashu mints pay. Uptime, latency and real Lightning swaps between public Cashu mints.',
 };
@@ -42,7 +45,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const operator = await currentOperator();
   const profile = operator ? profileOf(operator) : null;
   return (
-    <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
+    <html lang="en" data-env={DEV ? 'dev' : undefined} className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
         <UpdateBanner version={buildVersion()} />
         <header className="site-header">
@@ -50,6 +53,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <Link href="/" className="wordmark" aria-label="Cashu Mints Auditor home">
               <Mark />
               <span>Cashu Mints <b>Auditor</b></span>
+              {DEV && <span className="env-badge">DEV</span>}
             </Link>
             <nav className="nav" aria-label="Main" style={{ alignItems: 'center' }}>
               <LiveStatus />

@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 export type LiveEventType = 'audit' | 'swap' | 'donation' | 'checks' | 'mints';
 export type LiveEvent = { type: LiveEventType; at: number; data?: Record<string, string | number | boolean | null> };
 
-const g = globalThis as unknown as { __cashuAuditBus?: EventEmitter };
+const g = globalThis as unknown as { __cashuAuditBus?: EventEmitter; __cashuAuditStopping?: boolean };
 
 export const bus: EventEmitter =
   g.__cashuAuditBus ??
@@ -12,6 +12,13 @@ export const bus: EventEmitter =
     emitter.setMaxListeners(0);
     return emitter;
   })());
+
+export const isStopping = () => g.__cashuAuditStopping === true;
+
+export function stop() {
+  g.__cashuAuditStopping = true;
+  bus.emit('shutdown');
+}
 
 export function publish(type: LiveEventType, data?: LiveEvent['data']) {
   bus.emit('event', { type, at: Date.now(), data } satisfies LiveEvent);

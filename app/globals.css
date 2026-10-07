@@ -814,3 +814,22 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .money-alert svg { flex: none; margin-top: 3px; }
 .money-alert p { margin: 0; font-size: 14px; line-height: 21px; }
 .money-alert p + p { margin-top: 8px; }
+
+:root[data-env="dev"] {
+  --accent: #e8590c;
+  --accent-ink: #c2410c;
+  --accent-wash: rgb(232 89 12 / 0.10);
+  --series-1: #e8590c;
+  --glow-1: rgb(232 89 12 / 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-env="dev"]:where(:not([data-theme="light"])) {
+    --accent: #ff8a3d;
+    --accent-ink: #ffa366;
+    --accent-wash: rgb(255 138 61 / 0.14);
+    --series-1: #ff8a3d;
+    --glow-1: rgb(255 138 61 / 0.18);
+  }
+}
+:root[data-env="dev"] .site-header { border-bottom: 3px solid var(--accent); }
+.env-badge { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 18px; font-weight: 800; letter-spacing: 0.08em; color: var(--on-accent); background: var(--accent); }

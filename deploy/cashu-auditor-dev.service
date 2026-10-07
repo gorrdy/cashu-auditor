@@ -1,0 +1,50 @@
+[Unit]
+Description=Cashu Mints Auditor dev (dev.cashu.info)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cashu-audit
+Group=cashu-audit
+WorkingDirectory=/srv/cashu-auditor-dev/app
+EnvironmentFile=/etc/cashu-auditor/dev.env
+Environment=NODE_ENV=production
+Environment=HOME=/srv/cashu-auditor-dev
+ExecStart=/opt/node-v24.21.0/bin/node node_modules/next/dist/bin/next start -H ${BIND_HOST} -p ${PORT}
+Restart=always
+RestartSec=5
+SuccessExitStatus=143
+TimeoutStopSec=15
+UMask=0077
+MemoryMax=768M
+TasksMax=256
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/cashu-auditor-dev/data /srv/cashu-auditor-dev/app/.next/cache
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target

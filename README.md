@@ -55,8 +55,11 @@ npm test
 
 ## Deploy
 
-`./deploy.sh` copies the working tree to `/srv/cashu-auditor/app`, builds it as the `cashu-audit` user and
-restarts the `cashu-auditor` systemd service.
+`./deploy.sh` deploys to the dev instance (`/srv/cashu-auditor-dev`, service `cashu-auditor-dev`,
+env `/etc/cashu-auditor/dev.env`) and `./deploy.sh prod` to production (`/srv/cashu-auditor`, service
+`cashu-auditor`). Each copies the working tree, builds it as the `cashu-audit` user, restarts the service
+and runs the smoke tests. The two instances have separate databases and wallets; `APP_ENV=dev` turns the
+accent orange and marks the site noindex.
 
 ## License
 

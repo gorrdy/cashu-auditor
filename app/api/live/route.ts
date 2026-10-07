@@ -1,4 +1,4 @@
-import { bus, type LiveEvent } from '@/lib/events';
+import { bus, isStopping, type LiveEvent } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -6,6 +6,7 @@ const MAX_CLIENTS = 500;
 let clients = 0;
 
 export async function GET(request: Request) {
+  if (isStopping()) return new Response('Restarting', { status: 503, headers: { Connection: 'close' } });
   if (clients >= MAX_CLIENTS) return new Response('Too many listeners', { status: 503 });
   const encoder = new TextEncoder();
   let cleanup = () => {};
@@ -30,11 +31,13 @@ export async function GET(request: Request) {
         clients--;
         clearInterval(ping);
         bus.off('event', onEvent);
+        bus.off('shutdown', cleanup);
         try {
           controller.close();
         } catch {}
       };
       bus.on('event', onEvent);
+      bus.once('shutdown', cleanup);
       request.signal.addEventListener('abort', cleanup);
       send('retry: 5000\n\n');
     },
