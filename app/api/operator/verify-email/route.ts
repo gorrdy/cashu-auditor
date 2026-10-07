@@ -20,10 +20,5 @@ export async function GET(request: Request) {
     return back('signed-in');
   }
 
-  const claim = await consumeChallenge(token, 'claim-email');
-  if (claim?.claimId) {
-    await prisma.mintClaim.updateMany({ where: { id: claim.claimId, operatorId: claim.operatorId ?? '' }, data: { verifiedAt: new Date(), method: 'email' } });
-    return back('verified');
-  }
   return back('invalid-link');
 }

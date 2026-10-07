@@ -1,14 +1,12 @@
 import { resolveTxt } from 'node:dns/promises';
 import { prisma } from '../prisma';
 import { probeMint } from '../probe';
-import { mintPage, SITE_URL } from '../site';
-import { emailEnabled, sendEmail } from '../notify/email';
-import { createChallenge, randomToken } from './session';
+import { randomToken } from './session';
 import { toHexPubkey } from './nostr';
 import { recoverNodeKey } from './nodeSig';
 
-export type ClaimMethod = 'nostr' | 'node' | 'email' | 'motd' | 'dns';
-export const METHODS: ClaimMethod[] = ['nostr', 'node', 'email', 'motd', 'dns'];
+export type ClaimMethod = 'nostr' | 'node' | 'motd' | 'dns';
+export const METHODS: ClaimMethod[] = ['nostr', 'node', 'motd', 'dns'];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -35,7 +33,6 @@ export const verifyCode = (code: string) => `cashu-audit-verify=${code}`;
 export function recommendedMethod(contacts: ReturnType<typeof mintContacts>, operatorPubkey: string | null, lnPubkey: string | null = null): ClaimMethod {
   if (operatorPubkey && contacts.nostr.includes(operatorPubkey)) return 'nostr';
   if (lnPubkey) return 'node';
-  if (contacts.email.length && emailEnabled()) return 'email';
   return 'motd';
 }
 
@@ -61,7 +58,6 @@ export async function verifyClaim(operatorId: string, claimId: string, method: C
   if (!claim || claim.operatorId !== operatorId) return { error: 'Claim not found' };
   const mint = await prisma.mint.findUnique({ where: { id: claim.mintId }, select: { url: true, contact: true, name: true, lnPubkey: true } });
   if (!mint) return { error: 'Mint not found' };
-  const contacts = mintContacts(mint.contact);
 
   if (method === 'nostr') {
     const operator = await prisma.operator.findUnique({ where: { id: operatorId }, select: { pubkey: true } });
@@ -71,19 +67,6 @@ export async function verifyClaim(operatorId: string, claimId: string, method: C
     if (!live.nostr.includes(operator.pubkey)) return { error: 'Your npub is not listed as a nostr contact in this mint\'s /v1/info.' };
     await markVerified(claim.id, 'nostr');
     return { ok: 'Verified through the nostr contact of the mint.' };
-  }
-
-  if (method === 'email') {
-    if (!emailEnabled()) return { error: 'Email verification is not available yet.' };
-    const to = input?.trim().toLowerCase();
-    if (!to || !contacts.email.includes(to)) return { error: 'Choose an email address listed in the mint\'s /v1/info.' };
-    const token = await createChallenge('claim-email', { operatorId, claimId: claim.id }, 24 * 3_600_000);
-    await sendEmail(
-      to,
-      `Confirm you operate ${mint.name ?? mint.url}`,
-      `Someone asked to manage ${mint.url} on Cashu Mints Auditor.\n\nIf it was you, confirm here:\n${SITE_URL}/api/operator/verify-email?token=${token}\n\nIf not, ignore this email.\n\n${mintPage(claim.mintId)}`
-    );
-    return { ok: `We sent a confirmation link to ${to}.` };
   }
 
   if (method === 'node') {

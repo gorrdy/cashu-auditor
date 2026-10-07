@@ -8,7 +8,7 @@ import {
   removeChannel, removeClaim, savePrefs, savePushSubscription, sendTestNotification, telegramLink, verifyClaimAction,
 } from '@/app/operators/actions';
 
-type Method = 'nostr' | 'node' | 'email' | 'motd' | 'dns';
+type Method = 'nostr' | 'node' | 'motd' | 'dns';
 type Prefs = { events: Record<string, boolean>; offlineMinutes: number };
 export type ClaimView = {
   id: string;
@@ -28,7 +28,7 @@ export type ClaimView = {
 export type ChannelView = { id: string; kind: string; label: string };
 type Available = { nostr: boolean; telegram: boolean; push: boolean; email: boolean };
 
-const METHOD_LABEL: Record<Method, string> = { nostr: 'Nostr contact', node: 'Lightning node', email: 'Email contact', motd: 'Code in mint info', dns: 'DNS record' };
+const METHOD_LABEL: Record<Method, string> = { nostr: 'Nostr contact', node: 'Lightning node', motd: 'Code in mint info', dns: 'DNS record' };
 const PERIODS = [1, 3, 6, 12];
 const PRICE = 1000;
 
@@ -47,18 +47,17 @@ function Copy({ text }: { text: string }) {
   );
 }
 
-function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; operatorNpub: string | null; email: boolean }) {
+function Verify({ claim, operatorNpub }: { claim: ClaimView; operatorNpub: string | null }) {
   const [method, setMethod] = useState<Method>(claim.method);
-  const [email, setEmail] = useState(claim.contacts.email[0] ?? '');
   const [signature, setSignature] = useState('');
   const [result, setResult] = useState<{ ok?: string; error?: string } | null>(null);
   const [pending, start] = useTransition();
   const code = `cashu-audit-verify=${claim.code}`;
-  const run = () => start(async () => setResult(await verifyClaimAction(claim.id, method, method === 'node' ? signature : email)));
+  const run = () => start(async () => setResult(await verifyClaimAction(claim.id, method, method === 'node' ? signature : undefined)));
   return (
     <div className="op-verify">
       <div className="tabs op-tabs" role="tablist" aria-label="Verification method">
-        {(['nostr', 'node', 'email', 'motd', 'dns'] as Method[]).filter(m => (m !== 'email' || emailOn) && (m !== 'node' || !!claim.lnPubkey)).map(m => (
+        {(['nostr', 'node', 'motd', 'dns'] as Method[]).filter(m => m !== 'node' || !!claim.lnPubkey).map(m => (
           <button key={m} type="button" role="tab" aria-selected={method === m} onClick={() => { setMethod(m); setResult(null); }}>
             {METHOD_LABEL[m]}{m === claim.method && <span className="op-rec">recommended</span>}
           </button>
@@ -83,16 +82,6 @@ function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; ope
             <textarea className="field mono" rows={2} placeholder="Signature" value={signature} onChange={e => setSignature(e.target.value)} aria-label="Signature" />
           </>
         )}
-        {method === 'email' && (
-          <>
-            <p>We send a confirmation link to an email address the mint lists in <span className="mono">/v1/info</span>.</p>
-            {claim.contacts.email.length ? (
-              <select className="field" value={email} onChange={e => setEmail(e.target.value)} aria-label="Email address">
-                {claim.contacts.email.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            ) : <p className="small soft">The mint lists no email contact.</p>}
-          </>
-        )}
         {method === 'motd' && (
           <>
             <p>Put this code into the mint&apos;s MOTD or description, wait for the mint to restart, then verify. Remove it afterwards.</p>
@@ -109,8 +98,8 @@ function Verify({ claim, operatorNpub, email: emailOn }: { claim: ClaimView; ope
             <Copy text={code} />
           </>
         )}
-        <button type="button" className="btn" disabled={pending || (method === 'nostr' && !operatorNpub) || (method === 'email' && !email) || (method === 'node' && !signature.trim())} onClick={run}>
-          {pending ? 'Checking…' : method === 'email' ? 'Send confirmation link' : 'Verify'}
+        <button type="button" className="btn" disabled={pending || (method === 'nostr' && !operatorNpub) || (method === 'node' && !signature.trim())} onClick={run}>
+          {pending ? 'Checking…' : 'Verify'}
         </button>
         <Note r={result} />
       </div>
@@ -216,7 +205,7 @@ function Preferences({ claim }: { claim: ClaimView }) {
   );
 }
 
-function ClaimCard({ claim, operatorNpub, email }: { claim: ClaimView; operatorNpub: string | null; email: boolean }) {
+function ClaimCard({ claim, operatorNpub }: { claim: ClaimView; operatorNpub: string | null }) {
   const [pending, start] = useTransition();
   const active = claim.verified && claim.active;
   return (
@@ -228,7 +217,7 @@ function ClaimCard({ claim, operatorNpub, email }: { claim: ClaimView; operatorN
         </div>
         <span className={`op-status ${active ? 'is-on' : claim.verified ? 'is-off' : 'is-pending'}`}>{active ? 'Alerts on' : claim.verified ? 'Verified' : 'Not verified'}</span>
       </div>
-      {!claim.verified ? <Verify claim={claim} operatorNpub={operatorNpub} email={email} /> : (
+      {!claim.verified ? <Verify claim={claim} operatorNpub={operatorNpub} /> : (
         <>
           <Subscription claim={claim} />
           <h3 className="op-sub-title">Alerts</h3>
@@ -348,7 +337,7 @@ export default function Dashboard({ who, claims, channels, options, preselect, a
       <section className="section">
         <div className="section-head"><h2 className="h2">Your mints</h2></div>
         <div className="op-grid">
-          {claims.map(c => <ClaimCard key={c.id} claim={c} operatorNpub={operatorNpub} email={available.email} />)}
+          {claims.map(c => <ClaimCard key={c.id} claim={c} operatorNpub={operatorNpub} />)}
           <ClaimForm options={options} preselect={preselect} />
         </div>
       </section>
