@@ -138,8 +138,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
           <div style={{ maxWidth: 640 }}>
             <h1 className="h1 hero-title">Do Cashu mints <span className="h1-accent">actually pay?</span></h1>
             <p className="soft" style={{ margin: '10px 0 0' }}>
-              Every 5 minutes we check each mint&apos;s API. Several times a day we move real sats between mints over
-              Lightning and record what happened. No ratings, only measurements.
+              Every 5 minutes we check each mint&apos;s API. Every day each mint pays out and receives real sats over
+              Lightning, and we record what happened. No ratings, only measurements.
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -188,7 +188,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                 <i className={`runway-${runwayLevel}`} style={{ width: `${Math.min(100, (runway / RUNWAY_SCALE_DAYS) * 100)}%` }} />
               </div>
               <p className="soft small" style={{ margin: 0 }}>
-                At about {fmtSat(totals.feesPerDay)} a day in Lightning fees. Every donation adds days.
+                At an estimated {fmtSat(totals.feesPerDay)} a day in Lightning fees for one payout and one receipt per mint. Every donation adds days.
               </p>
             </>
           )}
