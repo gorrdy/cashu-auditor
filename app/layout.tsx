@@ -7,6 +7,8 @@ import HoverTip from '@/components/HoverTip';
 import LiveStatus from '@/components/LiveStatus';
 import MobileMenu from '@/components/MobileMenu';
 import MenuCloser from '@/components/MenuCloser';
+import UpdateBanner from '@/components/UpdateBanner';
+import { buildVersion } from '@/lib/version';
 import { currentOperator } from '@/lib/operator/session';
 import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
@@ -38,6 +40,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
+        <UpdateBanner version={buildVersion()} />
         <header className="site-header">
           <div className="wrap">
             <Link href="/" className="wordmark" aria-label="Cashu Mints Auditor home">
