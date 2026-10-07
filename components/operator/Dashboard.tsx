@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import CopyButton from '@/components/CopyButton';
 import {
   addNostrChannel, checkSubscriptionInvoice, claimMint, createSubscriptionInvoice, logout, paySubscriptionWithToken,
   removeChannel, removeClaim, savePrefs, savePushSubscription, sendTestNotification, telegramLink, verifyClaimAction,
@@ -142,7 +143,7 @@ function Subscription({ claim }: { claim: ClaimView }) {
           <p className="donate-status">{state === 'expired' ? 'Invoice expired' : <><span className="pulse" aria-hidden="true" />Waiting for payment</>}</p>
           <div className="donate-actions">
             <a className="btn" href={`lightning:${invoice.request}`}>Open wallet</a>
-            <button type="button" className="btn secondary" onClick={() => navigator.clipboard.writeText(invoice.request).catch(() => null)}>Copy invoice</button>
+            <CopyButton text={invoice.request} label="Copy invoice" />
           </div>
           <button type="button" className="linkish" onClick={() => setInvoice(null)}>Cancel</button>
         </div>

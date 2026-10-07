@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getNostrChallenge, loginWithNostr, requestEmailLogin, startLightningLogin } from '@/app/operators/actions';
 import { SITE_URL } from '@/lib/site';
+import CopyButton from '@/components/CopyButton';
 
 type Nip07 = { signEvent: (e: { kind: number; created_at: number; tags: string[][]; content: string }) => Promise<unknown> };
 
@@ -73,8 +74,9 @@ export default function Login({ email }: { email: boolean }) {
           )}
           <div className="donate-actions">
             <a className="btn" href={`lightning:${ln.lnurl}`}>Open wallet</a>
-            <button type="button" className="btn secondary" onClick={() => setLn(null)}>Back</button>
+            <CopyButton text={ln.lnurl} label="Copy link" />
           </div>
+          <button type="button" className="linkish" onClick={() => setLn(null)}>Back</button>
         </div>
       ) : (
         <div className="op-login-buttons">
