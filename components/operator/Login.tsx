@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getNostrChallenge, loginWithNostr, requestEmailLogin, startLightningLogin } from '@/app/operators/actions';
+import { getNostrChallenge, loginWithNostr, loginWithPasskey, passkeyLoginOptions, requestEmailLogin, startLightningLogin } from '@/app/operators/actions';
+import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser';
 import { SITE_URL } from '@/lib/site';
 import CopyButton from '@/components/CopyButton';
 
@@ -30,6 +31,22 @@ export default function Login({ email }: { email: boolean }) {
     }, 2000);
     return () => clearInterval(t);
   }, [ln, router]);
+
+  const passkey = async () => {
+    setError(null);
+    if (!browserSupportsWebAuthn()) return setError('This browser does not support passkeys.');
+    setBusy(true);
+    try {
+      const response = await startAuthentication({ optionsJSON: await passkeyLoginOptions() });
+      const r = await loginWithPasskey(response);
+      if (r.error) setError(r.error);
+      else router.refresh();
+    } catch {
+      setError('Passkey sign-in was cancelled.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const lightning = async () => {
     setError(null);
@@ -63,7 +80,7 @@ export default function Login({ email }: { email: boolean }) {
   return (
     <div className="card op-login">
       <h2 className="h2">Sign in</h2>
-      <p className="small soft" style={{ margin: '4px 0 16px' }}>No password. Scan with a Lightning wallet (Phoenix, Zeus, Alby and others), or sign with the Nostr key listed for your mint.</p>
+      <p className="small soft" style={{ margin: '4px 0 16px' }}>No password. Scan with a Lightning wallet (Phoenix, Zeus, Alby and others), use a passkey you added to your profile, or sign with the Nostr key listed for your mint.</p>
       {ln ? (
         <div className="donate-pay">
           <a href={`lightning:${ln.lnurl}`} aria-label="Open in a Lightning wallet"><div className="qr" role="img" aria-label="Lightning login QR code" dangerouslySetInnerHTML={{ __html: ln.qr }} /></a>
@@ -81,6 +98,7 @@ export default function Login({ email }: { email: boolean }) {
       ) : (
         <div className="op-login-buttons">
           <button type="button" className="btn btn-block" onClick={lightning}>Sign in with Lightning</button>
+          <button type="button" className="btn secondary btn-block" disabled={busy} onClick={passkey}>Sign in with a passkey</button>
           <button type="button" className="btn secondary btn-block" disabled={busy} onClick={nostr}>{busy ? 'Waiting for signature…' : 'Sign in with Nostr'}</button>
         </div>
       )}

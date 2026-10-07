@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { currentOperator } from '@/lib/operator/session';
+import { prisma } from '@/lib/prisma';
 import { profileOf } from '@/lib/operator/avatar';
 import { fmtDate } from '@/components/format';
 import Profile from '@/components/operator/Profile';
@@ -11,13 +12,14 @@ export default async function ProfilePage() {
   const operator = await currentOperator();
   if (!operator) redirect('/operators');
   const p = profileOf(operator);
+  const passkeys = await prisma.passkey.findMany({ where: { operatorId: operator.id }, orderBy: { createdAt: 'asc' } });
   const method = operator.pubkey ? 'Nostr' : operator.lnKey ? 'Lightning wallet (LNURL-auth)' : 'Email';
   return (
     <>
       <p className="eyebrow">Account</p>
       <h1 className="h1" style={{ marginTop: 8 }}>Profile</h1>
       <section className="section">
-        <Profile name={p.name} identity={p.identity} avatar={p.avatar} method={method} since={fmtDate(operator.createdAt)} />
+        <Profile name={p.name} identity={p.identity} avatar={p.avatar} method={method} since={fmtDate(operator.createdAt)} passkeys={passkeys.map(p => ({ id: p.id, label: p.label ?? 'Passkey', created: fmtDate(p.createdAt), lastUsed: p.lastUsedAt ? fmtDate(p.lastUsedAt) : null }))} />
       </section>
     </>
   );

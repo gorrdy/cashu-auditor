@@ -236,6 +236,7 @@ model Operator {
   sessions  OperatorSession[]
   claims    MintClaim[]
   channels  NotifyChannel[]
+  passkeys  Passkey[]
 }
 
 model OperatorSession {
@@ -352,4 +353,18 @@ model Payout {
   updatedAt   DateTime @updatedAt
 
   @@index([status])
+}
+
+model Passkey {
+  id         String    @id
+  operatorId String
+  operator   Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  publicKey  Bytes
+  counter    Int       @default(0)
+  transports String?
+  label      String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([operatorId])
 }

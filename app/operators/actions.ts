@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { SITE_URL } from '@/lib/site';
 import { isMintId } from '@/lib/mintUrl';
 import { cookies } from 'next/headers';
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
+import { authenticationOptions, registerPasskey, registrationOptions, verifyPasskeyLogin } from '@/lib/operator/passkey';
 import { consumeChallenge, createChallenge, createSession, currentOperator, endSession } from '@/lib/operator/session';
 import { createLnurlChallenge, LNURL_COOKIE } from '@/lib/operator/lnurl';
 import { qrSvg } from '@/lib/donate';
@@ -187,4 +189,43 @@ export async function deleteAccount() {
   await endSession();
   await prisma.operator.delete({ where: { id: op.id } });
   revalidatePath('/', 'layout');
+}
+
+export async function passkeyRegistrationOptions() {
+  const op = await requireOperator();
+  return registrationOptions(op.id);
+}
+
+export async function addPasskey(response: RegistrationResponseJSON, label: string): Promise<Result> {
+  const op = await requireOperator();
+  const count = await prisma.passkey.count({ where: { operatorId: op.id } });
+  if (count >= 10) return { error: 'Ten passkeys is the limit.' };
+  try {
+    if (!(await registerPasskey(op.id, response, label))) return { error: 'The passkey could not be verified.' };
+  } catch {
+    return { error: 'The passkey could not be verified.' };
+  }
+  revalidatePath('/operators/profile');
+  return { ok: 'Passkey added. You can sign in with it now.' };
+}
+
+export async function removePasskey(id: string) {
+  const op = await requireOperator();
+  await prisma.passkey.deleteMany({ where: { id, operatorId: op.id } });
+  revalidatePath('/operators/profile');
+}
+
+export async function passkeyLoginOptions() {
+  return authenticationOptions();
+}
+
+export async function loginWithPasskey(response: AuthenticationResponseJSON): Promise<Result> {
+  let operatorId: string | null = null;
+  try {
+    operatorId = await verifyPasskeyLogin(response);
+  } catch {}
+  if (!operatorId) return { error: 'This passkey is not linked to an account.' };
+  await createSession(operatorId);
+  revalidatePath('/', 'layout');
+  return { ok: 'Signed in.' };
 }
