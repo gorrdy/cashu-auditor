@@ -38,6 +38,21 @@ describe('makeBlame', () => {
     const ok = s('E', 'D', 'success');
     expect(makeBlame([a, b, ok], now)(a)).toBeNull();
   });
+  it('blames a destination where most payments fail even if some succeed', () => {
+    const fails = Array.from({ length: 9 }, (_, i) => s(`S${i % 3}`, 'D', 'failed', 'melt', 'no_route'));
+    const ok = s('E', 'D', 'success');
+    expect(makeBlame([...fails, ok], now)(fails[0])).toBe('D');
+  });
+  it('does not blame a destination with a minority of failures', () => {
+    const fails = Array.from({ length: 3 }, (_, i) => s(`S${i}`, 'D', 'failed', 'melt', 'no_route'));
+    const oks = Array.from({ length: 7 }, (_, i) => s(`T${i}`, 'D', 'success'));
+    expect(makeBlame([...fails, ...oks], now)(fails[0])).toBeNull();
+  });
+  it('blames a source that fails to pay most destinations', () => {
+    const fails = Array.from({ length: 6 }, (_, i) => s('M', `D${i}`, 'failed', 'melt', 'no_route'));
+    const ok = s('M', 'X', 'success');
+    expect(makeBlame([...fails, ok], now)(fails[0])).toBe('M');
+  });
   it('blames the source for a stuck payment', () => {
     const x = s('K', 'H', 'pending', 'melt', 'Timeout after 60s');
     expect(makeBlame([x], now)(x)).toBe('K');

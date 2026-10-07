@@ -12,7 +12,6 @@ const LINKS = [
   { href: '/compare', label: 'Compare' },
   { href: '/infrastructure', label: 'Infrastructure' },
   { href: '/methodology', label: 'Methodology' },
-  { href: '/operators', label: 'For operators' },
 ];
 
 export default function MobileMenu({ profile }: { profile: Profile }) {

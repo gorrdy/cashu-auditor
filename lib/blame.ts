@@ -13,19 +13,36 @@ export type BlameSwap = {
 
 export const BLAME_SELECT = { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, timestamp: true } as const;
 
+const FAIL_RATIO = 0.5;
+const MIN_RATIO_ATTEMPTS = 5;
+
 export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * DAY) {
   const recent = swaps.filter(s => now - s.timestamp.getTime() < windowMs);
-  const receivedOk = new Set(recent.filter(s => s.status === 'success').map(s => s.destMintId));
-  const paidOk = new Set(recent.filter(s => s.status === 'success').map(s => s.sourceMintId));
+  const okIn = new Map<string, number>();
+  const okOut = new Map<string, number>();
+  const failIn = new Map<string, number>();
+  const failOut = new Map<string, number>();
+  const bump = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+  for (const s of recent) {
+    if (s.status !== 'success') continue;
+    bump(okIn, s.destMintId);
+    bump(okOut, s.sourceMintId);
+  }
   const failedFrom = new Map<string, Set<string>>();
   const failedTo = new Map<string, Set<string>>();
   for (const s of recent) {
     if (s.status !== 'failed' || s.stage !== 'melt' || !ROUTE_ERROR.test(s.error ?? '')) continue;
+    bump(failIn, s.destMintId);
+    bump(failOut, s.sourceMintId);
     if (!failedFrom.has(s.destMintId)) failedFrom.set(s.destMintId, new Set());
     failedFrom.get(s.destMintId)!.add(s.sourceMintId);
     if (!failedTo.has(s.sourceMintId)) failedTo.set(s.sourceMintId, new Set());
     failedTo.get(s.sourceMintId)!.add(s.destMintId);
   }
+
+  const mostlyFailing = (fails: number, oks: number) => oks === 0 || (fails + oks >= MIN_RATIO_ATTEMPTS && fails / (fails + oks) >= FAIL_RATIO);
+  const destBad = (id: string) => (failedFrom.get(id)?.size ?? 0) >= 2 && mostlyFailing(failIn.get(id) ?? 0, okIn.get(id) ?? 0);
+  const sourceBad = (id: string) => (failedTo.get(id)?.size ?? 0) >= 2 && mostlyFailing(failOut.get(id) ?? 0, okOut.get(id) ?? 0);
 
   return (s: BlameSwap): string | null => {
     if (s.status === 'success') return null;
@@ -43,8 +60,8 @@ export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * D
         return s.sourceMintId;
       case 'melt': {
         if (!ROUTE_ERROR.test(s.error ?? '')) return s.sourceMintId;
-        if ((failedFrom.get(s.destMintId)?.size ?? 0) >= 2 && !receivedOk.has(s.destMintId)) return s.destMintId;
-        if ((failedTo.get(s.sourceMintId)?.size ?? 0) >= 2 && !paidOk.has(s.sourceMintId)) return s.sourceMintId;
+        if (destBad(s.destMintId)) return s.destMintId;
+        if (sourceBad(s.sourceMintId)) return s.sourceMintId;
         return null;
       }
       default:

@@ -58,7 +58,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/compare" className="nav-optional nav-wide">Compare</Link>
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
-              <Link href="/operators" className="nav-optional nav-wide">Operators</Link>
               <span className="nav-optional"><AccountMenu profile={profile} /></span>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
               <MobileMenu profile={profile} />
