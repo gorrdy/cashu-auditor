@@ -229,6 +229,7 @@ model Operator {
   id        String          @id @default(cuid())
   pubkey    String?         @unique
   email     String?         @unique
+  lnKey     String?         @unique
   createdAt DateTime        @default(now())
   sessions  OperatorSession[]
   claims    MintClaim[]
@@ -251,6 +252,7 @@ model LoginChallenge {
   email     String?
   operatorId String?
   claimId   String?
+  lnKey     String?
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())

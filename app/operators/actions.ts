@@ -4,7 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { SITE_URL } from '@/lib/site';
 import { isMintId } from '@/lib/mintUrl';
+import { cookies } from 'next/headers';
 import { consumeChallenge, createChallenge, createSession, currentOperator, endSession } from '@/lib/operator/session';
+import { createLnurlChallenge, LNURL_COOKIE } from '@/lib/operator/lnurl';
+import { qrSvg } from '@/lib/donate';
 import { toHexPubkey, verifyLoginEvent } from '@/lib/operator/nostr';
 import { METHODS, startClaim, verifyClaim, type ClaimMethod } from '@/lib/operator/claims';
 import { checkClaimInvoice, createClaimInvoice, payClaimWithToken } from '@/lib/operator/billing';
@@ -27,6 +30,12 @@ async function ownClaim(operatorId: string, claimId: string) {
 
 export async function getNostrChallenge() {
   return createChallenge('nostr-login', {}, 5 * 60_000);
+}
+
+export async function startLightningLogin() {
+  const { k1, lnurl } = await createLnurlChallenge();
+  (await cookies()).set(LNURL_COOKIE, k1, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 });
+  return { lnurl, qr: await qrSvg(`lightning:${lnurl}`) };
 }
 
 export async function loginWithNostr(challenge: string, event: unknown): Promise<Result> {

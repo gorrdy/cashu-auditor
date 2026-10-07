@@ -55,7 +55,7 @@ export default async function Operators({ searchParams }: { searchParams: Promis
     const label = (kind: string, target: string, l: string | null) => l && kind !== 'nostr' ? l : kind === 'nostr' ? `${npubOf(target).slice(0, 16)}…` : kind === 'push' ? 'Device' : target;
     dashboard = (
       <Dashboard
-        who={operator.pubkey ? `${npubOf(operator.pubkey).slice(0, 20)}…` : operator.email ?? ''}
+        who={operator.pubkey ? `${npubOf(operator.pubkey).slice(0, 20)}…` : operator.email ?? (operator.lnKey ? `Lightning key ${operator.lnKey.slice(0, 16)}…` : '')}
         operatorNpub={operator.pubkey ? npubOf(operator.pubkey) : null}
         claims={views}
         channels={channels.map(c => ({ id: c.id, kind: c.kind, label: label(c.kind, c.target, c.label) }))}

@@ -764,3 +764,4 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .op-channel { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); }
 .op-channel .btn { align-self: flex-start; }
 .op-tests { list-style: none; padding: 0; margin: 8px 0 0; }
+.op-login-buttons { display: grid; gap: 10px; }

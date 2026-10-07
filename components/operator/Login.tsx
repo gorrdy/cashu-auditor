@@ -1,8 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getNostrChallenge, loginWithNostr, requestEmailLogin } from '@/app/operators/actions';
+import { getNostrChallenge, loginWithNostr, requestEmailLogin, startLightningLogin } from '@/app/operators/actions';
 import { SITE_URL } from '@/lib/site';
 
 type Nip07 = { signEvent: (e: { kind: number; created_at: number; tags: string[][]; content: string }) => Promise<unknown> };
@@ -12,6 +12,29 @@ export default function Login({ email }: { email: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(requestEmailLogin, null);
+  const [ln, setLn] = useState<{ lnurl: string; qr: string } | null>(null);
+  const [lnState, setLnState] = useState<'waiting' | 'expired' | null>(null);
+
+  useEffect(() => {
+    if (!ln) return;
+    const t = setInterval(async () => {
+      const r = await fetch('/api/operator/lnurl-auth/status', { cache: 'no-store' }).then(x => x.json()).catch(() => null);
+      if (r?.state === 'ok') {
+        clearInterval(t);
+        router.refresh();
+      } else if (r?.state === 'expired') {
+        clearInterval(t);
+        setLnState('expired');
+      }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [ln, router]);
+
+  const lightning = async () => {
+    setError(null);
+    setLnState('waiting');
+    setLn(await startLightningLogin());
+  };
 
   const nostr = async () => {
     setError(null);
@@ -39,8 +62,26 @@ export default function Login({ email }: { email: boolean }) {
   return (
     <div className="card op-login">
       <h2 className="h2">Sign in</h2>
-      <p className="small soft" style={{ margin: '4px 0 16px' }}>No password. Use the Nostr key listed for your mint, or an email address.</p>
-      <button type="button" className="btn btn-block" disabled={busy} onClick={nostr}>{busy ? 'Waiting for signature…' : 'Sign in with Nostr'}</button>
+      <p className="small soft" style={{ margin: '4px 0 16px' }}>No password. Scan with a Lightning wallet (Phoenix, Zeus, Alby and others), or sign with the Nostr key listed for your mint.</p>
+      {ln ? (
+        <div className="donate-pay">
+          <a href={`lightning:${ln.lnurl}`} aria-label="Open in a Lightning wallet"><div className="qr" role="img" aria-label="Lightning login QR code" dangerouslySetInnerHTML={{ __html: ln.qr }} /></a>
+          {lnState === 'expired' ? (
+            <p className="donate-status is-expired">The login request expired.</p>
+          ) : (
+            <p className="donate-status"><span className="pulse" aria-hidden="true" />Scan with a Lightning wallet that supports LNURL-auth</p>
+          )}
+          <div className="donate-actions">
+            <a className="btn" href={`lightning:${ln.lnurl}`}>Open wallet</a>
+            <button type="button" className="btn secondary" onClick={() => setLn(null)}>Back</button>
+          </div>
+        </div>
+      ) : (
+        <div className="op-login-buttons">
+          <button type="button" className="btn btn-block" onClick={lightning}>Sign in with Lightning</button>
+          <button type="button" className="btn secondary btn-block" disabled={busy} onClick={nostr}>{busy ? 'Waiting for signature…' : 'Sign in with Nostr'}</button>
+        </div>
+      )}
       {error && <p className="donate-error" role="status">{error}</p>}
       {email && (
         <>
