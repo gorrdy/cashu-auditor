@@ -242,6 +242,7 @@ async function computeOverview(now: number) {
       ...m,
       offlineSince: offlineSince === Infinity ? null : offlineSince,
       lastOnlineAt: h?.lastUp ?? null,
+      isNew: now - m.addedAt.getTime() < 7 * DAY,
       longOffline: offlineSince != null && offlineSince !== Infinity && now - offlineSince > LONG_OFFLINE_DAYS * DAY,
       latestStatus: l?.status,
       latestLatency: l && l.status !== 'offline' ? l.latency : null,

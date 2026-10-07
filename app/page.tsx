@@ -258,7 +258,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                 <div className="mc-head">
                   <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} size={40} />
                   <div className="mc-name">
-                    <span className="mc-title" title={mintLabel(m)}>{mintLabel(m)}</span>
+                    <span className="mc-title" title={mintLabel(m)}>{mintLabel(m)}{m.isNew && <span className="new-chip">New</span>}</span>
                     <span className="url" title={m.url}>{hostOf(m.url)}</span>
                   </div>
                   <span className="mc-state"><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></span>
@@ -313,7 +313,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <div className="mint-cell">
                       <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                       <div style={{ minWidth: 0 }}>
-                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{mintLabel(m)}</Link>
+                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{m.isNew && <span className="new-chip">New</span>}{mintLabel(m)}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
                         {m.versionStatus?.outdated && <div><span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span></div>}
                         {m.isTest && <div className="url" title="Test mint: may issue unbacked ecash. Checked, but not used as a swap destination.">test mint</div>}

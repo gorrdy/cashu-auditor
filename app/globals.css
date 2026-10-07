@@ -765,3 +765,7 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .op-channel .btn { align-self: flex-start; }
 .op-tests { list-style: none; padding: 0; margin: 8px 0 0; }
 .op-login-buttons { display: grid; gap: 10px; }
+.new-chip { display: inline-block; margin: 0 6px; padding: 0 7px; border-radius: 999px; font-family: var(--font-sans); font-size: 10px; line-height: 16px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 2px; color: var(--on-accent); background: var(--accent); }
+.mc-title .new-chip { margin-right: 0; }
+.rowlink .new-chip { margin: 0 6px 0 0; }
+.eyebrow .new-chip { letter-spacing: 0.05em; }
