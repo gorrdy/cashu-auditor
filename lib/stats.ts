@@ -28,12 +28,8 @@ const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'num
 export const dayKey = (t: number) => dayFormatter.format(t);
 
 export function lastDays(n: number, now: number): string[] {
-  const keys: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const k = dayKey(now - i * DAY);
-    if (keys[keys.length - 1] !== k) keys.push(k);
-  }
-  return keys;
+  const [y, m, d] = dayKey(now).split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => new Date(Date.UTC(y, m - 1, d - (n - 1 - i))).toISOString().slice(0, 10));
 }
 
 function median(values: number[]) {

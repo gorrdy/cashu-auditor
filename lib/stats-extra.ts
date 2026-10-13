@@ -158,6 +158,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     frankfurtLatency: buckets.map(v => median(v)),
     frankfurtUptime: frankfurt.length ? (fraUp / frankfurt.length) * 100 : null,
     frankfurtChecks: frankfurt.length,
+    frankfurtPartial: since < FRANKFURT_SEQUENTIAL_FROM,
     events: events.map(e => ({ kind: e.kind, previous: e.previous, value: e.value, timestamp: e.timestamp.getTime() })),
     checks: latestChecks,
     lost: { sat: lost._sum.amount ?? 0, proofs: lost._count },

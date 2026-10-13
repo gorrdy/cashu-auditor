@@ -129,7 +129,7 @@ export default async function MintPage({ params, searchParams }: Props) {
           <div><div className="tile-label">Since last outage</div><div className="tile-value">{ongoing ? 'Down now' : lastEnd ? fmtDuration(now - lastEnd) : 'No outage'}</div><div className="tile-sub">in the last {r.label}</div></div>
           <div><div className="tile-label">Time to recover (MTTR)</div><div className="tile-value">{mttr != null ? fmtDuration(mttr) : '—'}</div><div className="tile-sub">{closed.length} closed outage{closed.length === 1 ? '' : 's'}</div></div>
           <div><div className="tile-label">Time between outages (MTBF)</div><div className="tile-value">{mtbf != null ? fmtDuration(mtbf) : '—'}</div><div className="tile-sub">{d.incidents.length} outage{d.incidents.length === 1 ? '' : 's'} in {r.label}</div></div>
-          <div><div className="tile-label">Uptime from Frankfurt</div><div className="tile-value">{fmtPct(x.frankfurtUptime, 2)}</div><div className="tile-sub">{x.frankfurtChecks} checks in {r.label}</div></div>
+          <div><div className="tile-label">Uptime from Frankfurt</div><div className="tile-value">{fmtPct(x.frankfurtUptime, 2)}</div><div className="tile-sub">{x.frankfurtChecks} checks in {r.label}{x.frankfurtPartial ? ', collected since Oct 4' : ''}</div></div>
         </div>
       </section>
 

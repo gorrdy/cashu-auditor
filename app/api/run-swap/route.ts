@@ -54,15 +54,11 @@ export async function GET(request: Request) {
     const home = homeMintUrl();
     const backoff = await loadBackoff(now);
     const trust = await trustState(now);
-    const [history, provenRows] = await Promise.all([
-      prisma.swap.findMany({
-        where: { kind: 'swap', timestamp: { gte: new Date(now - HISTORY_DAYS * DAY) }, ...COUNTED },
-        select: { sourceMintId: true, destMintId: true, status: true, timestamp: true },
-        orderBy: { timestamp: 'desc' },
-      }),
-      prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' } }),
-    ]);
-    const proven = new Set(provenRows.map(r => r.sourceMintId));
+    const history = await prisma.swap.findMany({
+      where: { kind: 'swap', timestamp: { gte: new Date(now - HISTORY_DAYS * DAY) }, ...COUNTED },
+      select: { sourceMintId: true, destMintId: true, status: true, timestamp: true },
+      orderBy: { timestamp: 'desc' },
+    });
     const last = lastTried(history);
     const today = startOfDay(now);
     const todays = history.filter(h => h.timestamp.getTime() >= today);
@@ -87,7 +83,7 @@ export async function GET(request: Request) {
         if (dest.id === source.id || pairedToday.has(pairKey(source.id, dest.id)) || !backoff.canPair(source.id, dest.id)) continue;
         const priority = pairValue(source.id, dest.id, coverage, last, now);
         if (priority === null) continue;
-        if (Math.max(bolt11Min(source.methods, 'melt'), bolt11Min(dest.methods, 'mint')) > Math.min(proven.has(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, available)) continue;
+        if (Math.max(bolt11Min(source.methods, 'melt'), bolt11Min(dest.methods, 'mint')) > Math.min(trust.proven(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX, available)) continue;
         if (dest.url !== home && ((balanceOf.get(dest.id) ?? 0) + amount > MAX_EXPOSURE || !trust.canHoldMore(dest.id, amount))) continue;
         candidates.push({ source, dest, amount, priority: priority + Math.random() });
       }
@@ -99,7 +95,7 @@ export async function GET(request: Request) {
 
     const attempts = [];
     for (const dest of dests.slice(0, MAX_DEST_ATTEMPTS)) {
-      const r = await transfer({ source, dest, amount: proven.has(dest.id) ? amount : Math.min(amount, UNPROVEN_DEST_MAX), maxAmount: proven.has(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX });
+      const r = await transfer({ source, dest, amount: trust.proven(dest.id) ? amount : Math.min(amount, UNPROVEN_DEST_MAX), maxAmount: trust.proven(dest.id) ? MAX_SWAP : UNPROVEN_DEST_MAX });
       attempts.push({ dest: dest.url, ...r });
       if (r.status !== 'failed' || r.fundsMoved || r.stage !== 'mint_quote') break;
     }
