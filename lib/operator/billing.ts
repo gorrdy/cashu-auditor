@@ -21,7 +21,7 @@ export const msatToSat = (msat: bigint) => Number(msat / THOUSAND);
 
 export async function credit(operatorId: string, sat: number, kind: string, note: string, source: 'lightning' | 'token') {
   await prisma.$transaction([
-    prisma.operator.update({ where: { id: operatorId }, data: { balanceMsat: { increment: BigInt(sat) * THOUSAND }, lowNotifiedAt: null } }),
+    prisma.operator.update({ where: { id: operatorId }, data: { balanceMsat: { increment: BigInt(sat) * THOUSAND }, lowNotifiedAt: null, pausedNotifiedAt: null } }),
     prisma.balanceEntry.create({ data: { operatorId, amountMsat: BigInt(sat) * THOUSAND, kind, note } }),
   ]);
   await recordRevenue(null, sat, source);
@@ -112,7 +112,7 @@ export async function chargeDue(now = Date.now(), operatorId?: string) {
   for (const claim of claims) {
     const op = await prisma.operator.findUniqueOrThrow({ where: { id: claim.operatorId }, select: { balanceMsat: true } });
     if (op.balanceMsat < DAY_MSAT) {
-      paused.add(claim.operatorId);
+      if (claim.paidUntil && claim.paidUntil.getTime() <= now) paused.add(claim.operatorId);
       continue;
     }
     const from = Math.max(now, claim.paidUntil?.getTime() ?? 0);
@@ -124,18 +124,23 @@ export async function chargeDue(now = Date.now(), operatorId?: string) {
     charged++;
   }
 
+  const active = { verifiedAt: { not: null }, alerts: true };
   const operators = await prisma.operator.findMany({
-    where: { claims: { some: { verifiedAt: { not: null }, alerts: true } }, ...(operatorId ? { id: operatorId } : {}) },
-    select: { id: true, balanceMsat: true, lowNotifiedAt: true, _count: { select: { claims: { where: { verifiedAt: { not: null }, alerts: true } } } } },
+    where: { claims: { some: active }, ...(operatorId ? { id: operatorId } : {}) },
+    select: { id: true, balanceMsat: true, lowNotifiedAt: true, pausedNotifiedAt: true, claims: { where: active, select: { paidUntil: true } } },
   });
   for (const op of operators) {
-    const perDay = DAY_MSAT * BigInt(op._count.claims);
-    if (op.lowNotifiedAt || perDay === BigInt(0)) continue;
     if (paused.has(op.id)) {
+      if (op.pausedNotifiedAt) continue;
       await tell(op.id, 'Alerts paused', 'Your balance is empty, so alerts for your mints are paused. Top up to turn them back on.');
-      await prisma.operator.update({ where: { id: op.id }, data: { lowNotifiedAt: new Date(now) } });
-    } else if (op.balanceMsat < perDay * BigInt(LOW_DAYS)) {
-      await tell(op.id, 'Balance running low', `Your balance of ${msatToSat(op.balanceMsat)} sat covers less than ${LOW_DAYS} days of alerts. Top up to keep them running.`);
+      await prisma.operator.update({ where: { id: op.id }, data: { pausedNotifiedAt: new Date(now) } });
+      continue;
+    }
+    const ends = op.claims.flatMap(c => (c.paidUntil ? [c.paidUntil.getTime()] : []));
+    if (op.lowNotifiedAt || !ends.length) continue;
+    const fundedDays = Number(op.balanceMsat / (DAY_MSAT * BigInt(op.claims.length)));
+    if (Math.min(...ends) + fundedDays * DAY < now + LOW_DAYS * DAY) {
+      await tell(op.id, 'Balance running low', `Your balance of ${msatToSat(op.balanceMsat)} sat keeps alerts running for less than ${LOW_DAYS} more days. Top up to keep them running.`);
       await prisma.operator.update({ where: { id: op.id }, data: { lowNotifiedAt: new Date(now) } });
     }
   }

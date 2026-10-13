@@ -234,6 +234,7 @@ model Operator {
   avatarSeed String?
   balanceMsat BigInt        @default(0)
   lowNotifiedAt DateTime?
+  pausedNotifiedAt DateTime?
   createdAt DateTime        @default(now())
   sessions  OperatorSession[]
   claims    MintClaim[]
