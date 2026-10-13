@@ -61,6 +61,9 @@ async function activeEvents(mintIds: string[], now: number) {
   return { out, labels: new Map(mints.map(m => [m.id, m.name ?? m.url])) };
 }
 
+const swapSucceededSince = async (mintId: string, since: Date) =>
+  !!(await prisma.swap.findFirst({ where: { status: 'success', timestamp: { gt: since }, OR: [{ sourceMintId: mintId }, { destMintId: mintId }] }, select: { id: true } }));
+
 export async function runNotifications(now = Date.now()) {
   const claims = await prisma.mintClaim.findMany({
     where: { verifiedAt: { not: null }, alerts: true, paidUntil: { gt: new Date(now) } },
@@ -100,13 +103,14 @@ export async function runNotifications(now = Date.now()) {
       const since = a ? (st && st.key === a.key ? st.since.getTime() : a.since) : 0;
       const notified = !!(a && st && st.key === a.key && st.notifiedAt);
       if (a && !notified) {
-        const minDelay = event === 'offline' ? Math.min(...claims.filter(c => c.mintId === mintId).map(c => parsePrefs(c.prefs).offlineMinutes)) * 60_000 : 0;
+        const minDelay = event === 'offline' || event === 'degraded' ? Math.min(...claims.filter(c => c.mintId === mintId).map(c => parsePrefs(c.prefs).offlineMinutes)) * 60_000 : 0;
         if (now - since < minDelay) continue;
         await deliver(mintId, event, { title: `${EVENTS[event]}: ${name}`, body: a.detail, url: mintPage(mintId) }, () => true);
         await prisma.notifyState.update({ where: { mintId_event: { mintId, event } }, data: { notifiedAt: new Date(now) } });
       }
       if (!a && st) {
-        if (st.notifiedAt && (event === 'offline' || event === 'degraded' || event === 'stuck' || event === 'unpaid')) {
+        if (event === 'swapfail' && st.notifiedAt && !(await swapSucceededSince(mintId, st.notifiedAt))) continue;
+        if (st.notifiedAt && (event === 'offline' || event === 'degraded' || event === 'stuck' || event === 'unpaid' || event === 'swapfail')) {
           await deliver(mintId, event, { title: `Resolved: ${name}`, body: `${EVENTS[event]} is over after ${fmtDuration(now - st.since.getTime())}.`, url: mintPage(mintId) }, () => true);
         }
         await prisma.notifyState.delete({ where: { mintId_event: { mintId, event } } });

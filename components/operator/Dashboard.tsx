@@ -203,7 +203,7 @@ function AlertsToggle({ claim }: { claim: ClaimView }) {
 const EVENT_LABEL: Record<string, string> = {
   offline: 'Mint goes offline',
   degraded: 'No active sat keyset',
-  swapfail: 'A swap fails at the mint',
+  swapfail: 'Swaps fail at the mint (once until a swap succeeds)',
   stuck: 'Outgoing payment stuck for an hour',
   unpaid: 'Payment received, no ecash issued',
   outdated: 'Software is outdated',
@@ -221,11 +221,13 @@ function Preferences({ claim }: { claim: ClaimView }) {
         <label key={k} className="op-check">
           <input type="checkbox" checked={!!events[k]} onChange={e => setEvents({ ...events, [k]: e.target.checked })} />
           {EVENT_LABEL[k]}
-          {k === 'offline' && events.offline && (
-            <span className="small soft"> after <input className="field op-minutes" type="number" min={5} max={1440} value={minutes} onChange={e => setMinutes(Number(e.target.value))} aria-label="Minutes offline before an alert" /> min</span>
-          )}
         </label>
       ))}
+      {(events.offline || events.degraded) && (
+        <label className="op-check small soft">
+          Alert when offline or without a keyset for <input className="field op-minutes" type="number" min={5} max={1440} value={minutes} onChange={e => setMinutes(Number(e.target.value))} aria-label="Minutes before an offline or keyset alert" /> min
+        </label>
+      )}
       <button type="button" className="btn secondary" disabled={pending} onClick={() => start(async () => setResult(await savePrefs(claim.id, events, minutes)))}>Save alerts</button>
       <Note r={result} />
     </div>
