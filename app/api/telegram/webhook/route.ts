@@ -22,7 +22,8 @@ export async function POST(request: Request) {
   const start = text.match(/^\/start\s+([\w-]{20,64})$/);
   if (start) {
     const challenge = await consumeChallenge(start[1], 'telegram-link');
-    if (!challenge?.operatorId) {
+    const owner = challenge?.operatorId ? await prisma.operator.findUnique({ where: { id: challenge.operatorId }, select: { id: true } }) : null;
+    if (!challenge?.operatorId || !owner) {
       await telegramApi('sendMessage', { chat_id: chatId, text: 'This link has expired. Open the operator page and connect Telegram again.' }).catch(() => null);
       return ok();
     }

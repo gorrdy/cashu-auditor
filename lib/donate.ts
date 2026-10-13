@@ -73,10 +73,7 @@ async function redeem(mintUrl: string, token: string | ProofLike[], credit: Cred
       return { ok: `${message}${note}` };
     } catch (error) {
       const known = await prisma.mint.findUnique({ where: { url: mintUrl }, select: { id: true, url: true } });
-      const restored = known ? await restoreProofs(known).catch(() => null) : null;
-      if (restored?.recovered) {
-        return { ok: `${await credit(known!.id, restored.recovered)} (recovered after an error)` };
-      }
+      if (known) await restoreProofs(known).catch(() => null);
       return { error: `Could not redeem token: ${errorMessage(error)}` };
     }
   });

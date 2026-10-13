@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, inject, it } from 'vitest';
+import { Amount, getEncodedToken } from '@cashu/cashu-ts';
 
 const DAY = 86_400_000;
 
@@ -45,5 +46,13 @@ describe('daily billing notices', () => {
     const id = await operatorWith('https://funded.example', 100, new Date(now));
     await billing.chargeDue(now, id);
     expect(Number((await state(id)).balanceMsat)).toBe(100_000 - Number(billing.DAY_MSAT));
+  });
+
+  it('accepts top-up tokens only from the home mint', async () => {
+    process.env.HOME_MINT_URL = 'https://home.example';
+    const id = await operatorWith('https://topup.example', 0, null);
+    const token = getEncodedToken({ mint: 'https://evil.example', proofs: [{ id: '00ad268c4d1f5826', amount: Amount.from(1000), secret: 'a'.repeat(64), C: '02' + 'b'.repeat(64) }] });
+    expect(await billing.topupWithToken(id, token)).toEqual({ error: expect.stringContaining('Only tokens from home.example') });
+    expect(Number((await state(id)).balanceMsat)).toBe(0);
   });
 });

@@ -19,6 +19,16 @@ import { DEFAULT_PREFS, EVENTS, parsePrefs, sendTest, type EventKey } from '@/li
 
 type Result = { ok?: string; error?: string };
 
+const PUSH_HOSTS = /(^|\.)(fcm\.googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com|push\.apple\.com)$/;
+function isPushService(endpoint: string) {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === 'https:' && !u.port && PUSH_HOSTS.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function requireOperator() {
   const op = await currentOperator();
   if (!op) throw new Error('Not signed in');
@@ -162,7 +172,7 @@ export async function savePushSubscription(subscription: string): Promise<Result
   } catch {
     return { error: 'Invalid subscription' };
   }
-  if (typeof parsed.endpoint !== 'string' || !parsed.endpoint.startsWith('https://') || subscription.length > 2000 || typeof parsed.keys?.p256dh !== 'string' || typeof parsed.keys?.auth !== 'string') return { error: 'Invalid subscription' };
+  if (typeof parsed.endpoint !== 'string' || !isPushService(parsed.endpoint) || subscription.length > 2000 || typeof parsed.keys?.p256dh !== 'string' || typeof parsed.keys?.auth !== 'string') return { error: 'Invalid subscription' };
   const target = JSON.stringify({ endpoint: parsed.endpoint, keys: { p256dh: parsed.keys.p256dh, auth: parsed.keys.auth } });
   await prisma.notifyChannel.upsert({ where: { operatorId_kind_target: { operatorId: op.id, kind: 'push', target } }, update: {}, create: { operatorId: op.id, kind: 'push', target, label: 'This device' } });
   revalidatePath('/operators');
@@ -194,9 +204,12 @@ export async function newAvatar() {
   revalidatePath('/', 'layout');
 }
 
-export async function deleteAccount() {
+export async function deleteAccount(): Promise<Result | undefined> {
   const op = await requireOperator();
+  const open = await prisma.topupInvoice.count({ where: { operatorId: op.id, status: 'unpaid', expiresAt: { gt: new Date() } } });
+  if (open) return { error: 'A top-up invoice is still open. Wait until it is paid or expires.' };
   await endSession();
+  await prisma.loginChallenge.deleteMany({ where: { operatorId: op.id } });
   await prisma.operator.delete({ where: { id: op.id } });
   revalidatePath('/', 'layout');
 }

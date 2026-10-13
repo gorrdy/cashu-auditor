@@ -5,6 +5,7 @@ import { withWalletLock } from '../lock';
 import { errorMessage } from '../transfer';
 import { createHomeQuote, homeMint, qrSvg, redeemToken, settleQuote, type QuoteStore } from '../donate';
 import { homeMintUrl } from '../consolidate';
+import { normalizeMintUrl } from '../mintUrl';
 import { SITE_URL } from '../site';
 import { sendToChannel } from '../notify/channels';
 import { recordRevenue } from './payout';
@@ -19,11 +20,16 @@ const THOUSAND = BigInt(1000);
 
 export const msatToSat = (msat: bigint) => Number(msat / THOUSAND);
 
-export async function credit(operatorId: string, sat: number, kind: string, note: string, source: 'lightning' | 'token') {
-  await prisma.$transaction([
-    prisma.operator.update({ where: { id: operatorId }, data: { balanceMsat: { increment: BigInt(sat) * THOUSAND }, lowNotifiedAt: null, pausedNotifiedAt: null } }),
-    prisma.balanceEntry.create({ data: { operatorId, amountMsat: BigInt(sat) * THOUSAND, kind, note } }),
-  ]);
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+export async function credit(operatorId: string, sat: number, kind: string, note: string, source: 'lightning' | 'token', claim?: (tx: Tx) => Promise<boolean>) {
+  const done = await prisma.$transaction(async tx => {
+    if (claim && !(await claim(tx))) return false;
+    await tx.operator.update({ where: { id: operatorId }, data: { balanceMsat: { increment: BigInt(sat) * THOUSAND }, lowNotifiedAt: null, pausedNotifiedAt: null } });
+    await tx.balanceEntry.create({ data: { operatorId, amountMsat: BigInt(sat) * THOUSAND, kind, note } });
+    return true;
+  });
+  if (!done) return;
   await recordRevenue(null, sat, source);
   await chargeDue(Date.now(), operatorId);
 }
@@ -32,8 +38,9 @@ const topupStore: QuoteStore = {
   status: async id => (await prisma.topupInvoice.findUnique({ where: { id }, select: { status: true } }))?.status,
   expire: id => prisma.topupInvoice.update({ where: { id }, data: { status: 'expired' } }),
   issue: async inv => {
-    const row = await prisma.topupInvoice.update({ where: { id: inv.id }, data: { status: 'issued' } });
-    await credit(row.operatorId, row.amount, 'topup', 'Lightning top-up', 'lightning');
+    const row = await prisma.topupInvoice.findUniqueOrThrow({ where: { id: inv.id } });
+    await credit(row.operatorId, row.amount, 'topup', 'Lightning top-up', 'lightning', async tx =>
+      (await tx.topupInvoice.updateMany({ where: { id: inv.id, status: { not: 'issued' } }, data: { status: 'issued' } })).count === 1);
   },
 };
 
@@ -84,11 +91,16 @@ export async function settleTopupInvoices() {
 
 export async function topupWithToken(operatorId: string, raw: string) {
   let amount = 0;
+  let mint = '';
   try {
-    amount = Number(getTokenMetadata(raw.trim()).amount);
+    const meta = getTokenMetadata(raw.trim());
+    amount = Number(meta.amount);
+    mint = normalizeMintUrl(meta.mint ?? '') ?? '';
   } catch {
     return { error: 'Not a valid Cashu token.' };
   }
+  const home = homeMintUrl();
+  if (!home || mint !== home) return { error: `Only tokens from ${home ? new URL(home).hostname : 'the home mint'} are accepted. Use Lightning for any other mint.` };
   if (amount < 100) return { error: 'Top up at least 100 sat.' };
   return redeemToken(raw.trim(), async (_mintId, received) => {
     await credit(operatorId, received, 'topup', 'Cashu token top-up', 'token');
@@ -116,12 +128,15 @@ export async function chargeDue(now = Date.now(), operatorId?: string) {
       continue;
     }
     const from = Math.max(now, claim.paidUntil?.getTime() ?? 0);
-    await prisma.$transaction([
-      prisma.operator.update({ where: { id: claim.operatorId }, data: { balanceMsat: { decrement: DAY_MSAT } } }),
-      prisma.balanceEntry.create({ data: { operatorId: claim.operatorId, amountMsat: -DAY_MSAT, kind: 'charge', claimId: claim.id, note: 'Alerts for one day' } }),
-      prisma.mintClaim.update({ where: { id: claim.id }, data: { paidUntil: new Date(from + DAY) } }),
-    ]);
-    charged++;
+    const ok = await prisma.$transaction(async tx => {
+      const moved = await tx.mintClaim.updateMany({ where: { id: claim.id, paidUntil: claim.paidUntil }, data: { paidUntil: new Date(from + DAY) } });
+      if (moved.count !== 1) return false;
+      const paid = await tx.operator.updateMany({ where: { id: claim.operatorId, balanceMsat: { gte: DAY_MSAT } }, data: { balanceMsat: { decrement: DAY_MSAT } } });
+      if (paid.count !== 1) throw new Error('balance changed');
+      await tx.balanceEntry.create({ data: { operatorId: claim.operatorId, amountMsat: -DAY_MSAT, kind: 'charge', claimId: claim.id, note: 'Alerts for one day' } });
+      return true;
+    }).catch(() => false);
+    if (ok) charged++;
   }
 
   const active = { verifiedAt: { not: null }, alerts: true };

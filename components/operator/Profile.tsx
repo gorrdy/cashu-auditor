@@ -81,8 +81,8 @@ export default function Profile({ name, identity, avatar, method, since, passkey
           <dt>Member since</dt><dd>{since}</dd>
         </dl>
         <h2 className="h2" style={{ marginTop: 28 }}>Delete account</h2>
-        <p className="small soft" style={{ margin: '4px 0 12px' }}>Removes your claims, alert settings and channels. Paid time is not refunded.</p>
-        <button type="button" className="btn secondary" disabled={pending} onClick={() => confirm('Delete your account, claims and alert channels?') && start(async () => { await deleteAccount(); router.push('/operators'); })}>Delete account</button>
+        <p className="small soft" style={{ margin: '4px 0 12px' }}>Removes your claims, alert settings and channels. Paid time and the remaining balance are not refunded.</p>
+        <button type="button" className="btn secondary" disabled={pending} onClick={() => confirm('Delete your account, claims and alert channels?') && start(async () => { const r = await deleteAccount(); if (r?.error) alert(r.error); else router.push('/operators'); })}>Delete account</button>
       </div>
     </div>
   );

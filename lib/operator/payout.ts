@@ -9,6 +9,7 @@ import { USER_AGENT } from '../site';
 
 export const MIN_PAYOUT = 1000;
 const MAX_ATTEMPTS = 48;
+const SETTLE_GRACE_MS = 15 * 60_000;
 const num = (a: unknown) => Amount.from(a as number).toNumber();
 
 export async function recordRevenue(claimId: string | null, amount: number, source: 'lightning' | 'token') {
@@ -67,6 +68,7 @@ async function resolve(payout: Payout) {
       await restoreProofs(home).catch(() => null);
       return done;
     }
+    if (quote.state === 'UNPAID' && Date.now() - p.createdAt.getTime() < SETTLE_GRACE_MS) return { status: 'pending' };
     if (quote.state === 'UNPAID') {
       const reserved = await prisma.proof.findMany({ where: { swapId: p.id, state: 'reserved' } });
       const states = reserved.length ? await withTimeout(wallet.checkProofsStates(reserved.map(toCashu))) : [];

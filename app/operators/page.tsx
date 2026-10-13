@@ -1,3 +1,4 @@
+import { homeMintUrl } from '@/lib/consolidate';
 import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { currentOperator } from '@/lib/operator/session';
@@ -64,6 +65,7 @@ export default async function Operators({ searchParams }: { searchParams: Promis
         available={available}
         vapidKey={process.env.VAPID_PUBLIC_KEY ?? null}
         balance={msatToSat(operator.balanceMsat)}
+        homeHost={homeMintUrl() ? new URL(homeMintUrl()!).hostname : null}
       />
     );
   }

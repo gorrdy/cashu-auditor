@@ -109,7 +109,7 @@ function Verify({ claim, operatorNpub }: { claim: ClaimView; operatorNpub: strin
   );
 }
 
-function Balance({ balance, mints }: { balance: number; mints: number }) {
+function Balance({ balance, mints, homeHost }: { balance: number; mints: number; homeHost: string | null }) {
   const router = useRouter();
   const [amount, setAmount] = useState(5000);
   const [invoice, setInvoice] = useState<{ id: string; request: string; qr: string; amount: number } | null>(null);
@@ -171,6 +171,7 @@ function Balance({ balance, mints }: { balance: number; mints: number }) {
           })}>{pending ? 'Creating invoice…' : `Top up ${amount.toLocaleString('en')} sat with Lightning`}</button>
           <details className="op-token">
             <summary>Top up with a Cashu token</summary>
+            {homeHost && <p className="small soft">Tokens from {homeHost} only.</p>}
             <textarea className="field mono" rows={2} placeholder="cashuB…" value={token} onChange={e => setToken(e.target.value)} />
             <button type="button" className="btn secondary" disabled={pending || !token.trim()} onClick={() => start(async () => { setResult(await topupToken(token)); setToken(''); router.refresh(); })}>Redeem token</button>
           </details>
@@ -346,9 +347,10 @@ function Channels({ channels, available, vapidKey }: { channels: ChannelView[]; 
   );
 }
 
-export default function Dashboard({ who, claims, channels, options, preselect, available, vapidKey, operatorNpub, balance }: {
+export default function Dashboard({ who, claims, channels, options, preselect, available, vapidKey, operatorNpub, balance, homeHost }: {
   who: string;
   balance: number;
+  homeHost: string | null;
   claims: ClaimView[];
   channels: ChannelView[];
   options: { id: string; label: string }[];
@@ -365,7 +367,7 @@ export default function Dashboard({ who, claims, channels, options, preselect, a
         <button type="button" className="linkish" disabled={pending} onClick={() => start(() => logout())}>Sign out</button>
       </div>
       <section className="section">
-        <Balance balance={balance} mints={claims.filter(c => c.verified && c.alerts).length} />
+        <Balance balance={balance} homeHost={homeHost} mints={claims.filter(c => c.verified && c.alerts).length} />
       </section>
       <section className="section" id="mints">
         <div className="section-head"><h2 className="h2">Your mints</h2></div>
