@@ -38,6 +38,11 @@ export function withTimeout<T>(p: Promise<T>, ms = OP_TIMEOUT_MS): Promise<T> {
 const INTERNAL_ERROR = /prisma|invocation|sqlite|\/srv\/|\/home\/|\/etc\/|\/opt\/|node_modules|\bat (async )?[\w.<>]+ \(|TypeError|ReferenceError|RangeError|SyntaxError|Cannot read prop/i;
 
 export function errorMessage(error: unknown): string {
+  if (error instanceof TypeError && error.message === 'fetch failed') {
+    const cause = (error as { cause?: unknown }).cause;
+    const detail = cause instanceof Error ? cause.message : '';
+    return detail && !INTERNAL_ERROR.test(detail) ? `Connection failed: ${detail.split('\n')[0].slice(0, 200)}` : 'Connection failed';
+  }
   const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
   if (INTERNAL_ERROR.test(raw)) {
     console.error('Internal error:', error);

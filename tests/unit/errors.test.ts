@@ -13,6 +13,10 @@ describe('errorMessage', () => {
     expect(errorMessage(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe('Internal auditor error');
     expect(errorMessage(new Error('SQLITE_BUSY: database is locked'))).toBe('Internal auditor error');
   });
+  it('reports the network cause of a failed fetch', () => {
+    expect(errorMessage(new TypeError('fetch failed', { cause: new Error('connect ECONNREFUSED 1.2.3.4:443') }))).toBe('Connection failed: connect ECONNREFUSED 1.2.3.4:443');
+    expect(errorMessage(new TypeError('fetch failed'))).toBe('Connection failed');
+  });
   it('keeps only the first line', () => {
     expect(errorMessage(new Error('HTTP 502\n<html>stuff</html>'))).toBe('HTTP 502');
   });

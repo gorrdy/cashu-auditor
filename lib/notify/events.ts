@@ -61,6 +61,9 @@ async function activeEvents(mintIds: string[], now: number) {
   return { out, labels: new Map(mints.map(m => [m.id, m.name ?? m.url])) };
 }
 
+const RETRY_MS = 30 * 60_000;
+const RESOLVABLE = new Set<EventKey>(['offline', 'degraded', 'stuck', 'unpaid', 'swapfail']);
+
 const swapSucceededSince = async (mintId: string, since: Date) =>
   !!(await prisma.swap.findFirst({ where: { status: 'success', timestamp: { gt: since }, OR: [{ sourceMintId: mintId }, { destMintId: mintId }] }, select: { id: true } }));
 
@@ -72,46 +75,58 @@ export async function runNotifications(now = Date.now()) {
   if (!claims.length) return { sent: 0 };
   const mintIds = [...new Set(claims.map(c => c.mintId))];
   const { out, labels } = await activeEvents(mintIds, now);
+  await prisma.notifyState.deleteMany({ where: { mintId: { notIn: mintIds } } });
   const states = await prisma.notifyState.findMany({ where: { mintId: { in: mintIds } } });
   let sent = 0;
 
-  const deliver = async (mintId: string, event: EventKey, m: Message, filter: (prefs: Prefs) => boolean) => {
-    for (const claim of claims.filter(c => c.mintId === mintId)) {
-      const prefs = parsePrefs(claim.prefs);
-      if (!prefs.events[event] || !filter(prefs)) continue;
-      for (const ch of claim.operator.channels) {
-        const r = await sendToChannel(ch, m);
-        await prisma.notifyLog.create({ data: { claimId: claim.id, channelId: ch.id, event, ok: r.ok, error: r.ok ? null : r.error } });
-        if (r.ok) sent++;
-      }
+  const send = async (claim: (typeof claims)[number], event: EventKey, m: Message) => {
+    let ok = false;
+    for (const ch of claim.operator.channels) {
+      const r = await sendToChannel(ch, m);
+      await prisma.notifyLog.create({ data: { claimId: claim.id, channelId: ch.id, event, ok: r.ok, error: r.ok ? null : r.error } });
+      if (r.ok) sent++;
+      ok ||= r.ok;
     }
+    return ok;
   };
+  const logsSince = (claimId: string, event: EventKey, since: Date) =>
+    prisma.notifyLog.findMany({ where: { claimId, event, timestamp: { gte: since } }, select: { ok: true, timestamp: true }, orderBy: { timestamp: 'desc' } });
 
   for (const mintId of mintIds) {
     const active = out.get(mintId) ?? {};
     const name = labels.get(mintId) ?? mintId;
+    const mintClaims = claims.filter(c => c.mintId === mintId);
     for (const event of Object.keys(EVENTS) as EventKey[]) {
       const a = active[event];
-      const st = states.find(s => s.mintId === mintId && s.event === event);
+      let st = states.find(s => s.mintId === mintId && s.event === event);
       if (a && (!st || st.key !== a.key)) {
-        await prisma.notifyState.upsert({
+        const since = new Date(st ? now : a.since);
+        st = await prisma.notifyState.upsert({
           where: { mintId_event: { mintId, event } },
-          update: { key: a.key, since: new Date(a.since), notifiedAt: null },
-          create: { mintId, event, key: a.key, since: new Date(a.since) },
+          update: { key: a.key, since, notifiedAt: null },
+          create: { mintId, event, key: a.key, since },
         });
       }
-      const since = a ? (st && st.key === a.key ? st.since.getTime() : a.since) : 0;
-      const notified = !!(a && st && st.key === a.key && st.notifiedAt);
-      if (a && !notified) {
-        const minDelay = event === 'offline' || event === 'degraded' ? Math.min(...claims.filter(c => c.mintId === mintId).map(c => parsePrefs(c.prefs).offlineMinutes)) * 60_000 : 0;
-        if (now - since < minDelay) continue;
-        await deliver(mintId, event, { title: `${EVENTS[event]}: ${name}`, body: a.detail, url: mintPage(mintId) }, () => true);
-        await prisma.notifyState.update({ where: { mintId_event: { mintId, event } }, data: { notifiedAt: new Date(now) } });
+      if (a && st) {
+        let delivered = false;
+        for (const claim of mintClaims) {
+          const prefs = parsePrefs(claim.prefs);
+          if (!prefs.events[event]) continue;
+          const delay = event === 'offline' || event === 'degraded' ? prefs.offlineMinutes * 60_000 : 0;
+          if (now - st.since.getTime() < delay) continue;
+          const logs = await logsSince(claim.id, event, st.since);
+          if (logs.some(l => l.ok) || (logs[0] && now - logs[0].timestamp.getTime() < RETRY_MS)) continue;
+          if (await send(claim, event, { title: `${EVENTS[event]}: ${name}`, body: a.detail, url: mintPage(mintId) })) delivered = true;
+        }
+        if (delivered && !st.notifiedAt) await prisma.notifyState.update({ where: { mintId_event: { mintId, event } }, data: { notifiedAt: new Date(now) } });
       }
       if (!a && st) {
         if (event === 'swapfail' && st.notifiedAt && !(await swapSucceededSince(mintId, st.notifiedAt))) continue;
-        if (st.notifiedAt && (event === 'offline' || event === 'degraded' || event === 'stuck' || event === 'unpaid' || event === 'swapfail')) {
-          await deliver(mintId, event, { title: `Resolved: ${name}`, body: `${EVENTS[event]} is over after ${fmtDuration(now - st.since.getTime())}.`, url: mintPage(mintId) }, () => true);
+        if (RESOLVABLE.has(event)) {
+          for (const claim of mintClaims) {
+            if (!(await logsSince(claim.id, event, st.since)).some(l => l.ok)) continue;
+            await send(claim, event, { title: `Resolved: ${name}`, body: `${EVENTS[event]} is over after ${fmtDuration(now - st.since.getTime())}.`, url: mintPage(mintId) });
+          }
         }
         await prisma.notifyState.delete({ where: { mintId_event: { mintId, event } } });
       }

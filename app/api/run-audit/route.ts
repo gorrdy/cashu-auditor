@@ -105,6 +105,7 @@ async function audit() {
             data: { tlsIssuer: result.cert.issuer, tlsExpiresAt: result.cert.validTo ? new Date(result.cert.validTo) : null },
           });
         }
+        if (result.status === 'offline' && !mint.offlineSince) await tx.mint.update({ where: { id: mint.id }, data: { offlineSince: timestamp } });
         await tx.auditLog.create({
           data: {
             mintId: mint.id,

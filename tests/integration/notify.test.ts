@@ -45,9 +45,22 @@ describe('alert notifications', () => {
     expect(sent).toEqual(['No active sat keyset: https://degraded.example']);
   });
 
+  it('uses each operator\'s own delay and sends once per operator', async () => {
+    const op = await prisma.operator.create({ data: {} });
+    await prisma.notifyChannel.create({ data: { operatorId: op.id, kind: 'nostr', target: 'y' } });
+    await prisma.mintClaim.create({ data: { operatorId: op.id, mintId: degraded, method: 'dns', code: 'd', verifiedAt: new Date(now), alerts: true, paidUntil: new Date(now + 86_400_000), prefs: JSON.stringify({ offlineMinutes: 60 }) } });
+    sent.length = 0;
+    await runNotifications(now + 12 * MIN);
+    expect(sent).toEqual([]);
+    await runNotifications(now + 61 * MIN);
+    expect(sent).toEqual(['No active sat keyset: https://degraded.example']);
+  });
+
   it('keeps a swap failure alert until a swap at the mint succeeds', async () => {
     const id = failing;
     await prisma.notifyState.create({ data: { mintId: id, event: 'swapfail', since: new Date(now - 60 * MIN), notifiedAt: new Date(now - 60 * MIN) } });
+    const claim = await prisma.mintClaim.findFirstOrThrow({ where: { mintId: id }, include: { operator: { include: { channels: true } } } });
+    await prisma.notifyLog.create({ data: { claimId: claim.id, channelId: claim.operator.channels[0].id, event: 'swapfail', ok: true, timestamp: new Date(now - 59 * MIN) } });
     sent.length = 0;
     await runNotifications(now);
     expect(await prisma.notifyState.count({ where: { mintId: id, event: 'swapfail' } })).toBe(1);

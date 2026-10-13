@@ -11,10 +11,11 @@ function percentile(sorted: number[], p: number) {
 
 export async function rollupHours(now = Date.now()) {
   const currentHour = Math.floor(now / HOUR) * HOUR;
-  const hasRollups = (await prisma.auditHourly.count()) > 0;
+  const last = await prisma.auditHourly.findFirst({ orderBy: { hour: 'desc' }, select: { hour: true } });
   const first = await prisma.auditLog.findFirst({ orderBy: { timestamp: 'asc' }, select: { timestamp: true } });
   if (!first) return { hours: 0 };
-  const from = hasRollups ? currentHour - 3 * HOUR : Math.floor(first.timestamp.getTime() / HOUR) * HOUR;
+  const firstHour = Math.floor(first.timestamp.getTime() / HOUR) * HOUR;
+  const from = last ? Math.max(firstHour, Math.min(currentHour - 3 * HOUR, last.hour.getTime() - 2 * HOUR)) : firstHour;
 
   let hours = 0;
   for (let start = from; start < currentHour; start += HOUR) {
@@ -56,8 +57,10 @@ export async function pruneRaw(now = Date.now()) {
   const oldest = await prisma.auditLog.findFirst({ where: { timestamp: { lt: cutoff } }, select: { timestamp: true } });
   if (oldest && !rolled) return { deleted: 0, skipped: 'old rows not rolled up yet' };
   const { count } = await prisma.auditLog.deleteMany({ where: { timestamp: { lt: cutoff } } });
+  const expired = { expiresAt: { lt: new Date(now - DAY) } };
+  const [challenges, sessions] = await Promise.all([prisma.loginChallenge.deleteMany({ where: expired }), prisma.operatorSession.deleteMany({ where: expired })]);
   await prisma.$executeRawUnsafe('PRAGMA optimize');
-  return { deleted: count };
+  return { deleted: count, challenges: challenges.count, sessions: sessions.count };
 }
 
 export async function snapshotScores(now = Date.now()) {
