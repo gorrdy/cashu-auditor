@@ -1,21 +1,26 @@
 import { json } from '@/lib/api';
-import { getMintDetail } from '@/lib/stats';
+import { getMintDetail, getOverview } from '@/lib/stats';
 import { getMintExtras } from '@/lib/stats-extra';
 import { computeScore } from '@/lib/score';
 import { isMintId } from '@/lib/mintUrl';
 import { mintPage } from '@/lib/site';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isMintId(id)) return json({ error: 'Not found' }, 404);
-  const [d, x] = await Promise.all([getMintDetail(id, '7d'), getMintExtras(id, '7d')]);
+  const [d, x, overview] = await Promise.all([getMintDetail(id, '7d'), getMintExtras(id, '7d'), getOverview()]);
   if (!d) return json({ error: 'Not found' }, 404);
   const m = d.mint;
-  const { score, parts } = computeScore({ ...d.scoreInput, reviewAvg: x.reviews.average, reviewCount: x.reviews.rated });
+  if (m.aliasOfId) return Response.redirect(new URL(`/api/v1/mints/${m.aliasOfId}`, request.url), 308);
+  const scored = computeScore({ ...d.scoreInput, reviewAvg: x.reviews.average, reviewCount: x.reviews.rated });
+  const score = m.isTest ? null : scored.score;
+  const parts = scored.parts;
   return json({
     id: m.id,
     url: m.url,
     name: m.name,
+    isTest: m.isTest,
+    recommended: overview.mints.find(r => r.id === m.id)?.recommended ?? false,
     state: d.state,
     reasons: d.reasons,
     score,

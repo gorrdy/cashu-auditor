@@ -124,7 +124,7 @@ export function getOverview(now?: number) {
 }
 
 async function computeOverview(now: number) {
-  const [mints, latest, uptime, strips, balances, donations, swapTotals, allSwaps, mintedBy, meltedBy, reviews, history, swapFees7d, otherFees7d] = await Promise.all([
+  const [mints, latest, uptime, strips, balances, donations, allSwaps, reviews, history, swapFees7d, otherFees7d] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true, addedAt: true } }),
     latestAudits(now),
     uptimeWindows(now),
@@ -134,14 +134,11 @@ async function computeOverview(now: number) {
       FROM AuditLog WHERE location = 'prague' AND timestamp >= ${now - DAY} GROUP BY mintId, hour`,
     prisma.proof.groupBy({ by: ['mintId', 'state'], _sum: { amount: true } }),
     prisma.donation.groupBy({ by: ['mintId'], _sum: { amount: true } }),
-    prisma.swap.groupBy({ by: ['status'], where: COUNTED_SWAP, _count: { _all: true }, _sum: { amount: true, fee: true, duration: true } }),
     prisma.swap.findMany({
       where: { AND: [COUNTED_SWAP, { OR: [{ timestamp: { gte: new Date(now - 30 * DAY) } }, { status: 'pending' }] }] },
       select: { status: true, stage: true, error: true, preimageOk: true, sourceMintId: true, destMintId: true, amount: true, fee: true, duration: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     }),
-    prisma.swap.groupBy({ by: ['destMintId'], where: { status: 'success' }, _count: { _all: true } }),
-    prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success' }, _count: { _all: true } }),
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
     onlineHistory(),
     prisma.swap.aggregate({ where: { kind: 'swap', status: 'success', timestamp: { gte: new Date(now - 7 * DAY) } }, _avg: { fee: true } }),
@@ -176,8 +173,12 @@ async function computeOverview(now: number) {
     stripBy.set(s.mintId, arr);
   }
 
-  const mintedCount = new Map(mintedBy.map(r => [r.destMintId, r._count._all]));
-  const meltedCount = new Map(meltedBy.map(r => [r.sourceMintId, r._count._all]));
+  const week = new Map<string, { out: number; in: number; blamed: number }>();
+  const weekOf = (id: string) => {
+    let w = week.get(id);
+    if (!w) week.set(id, (w = { out: 0, in: 0, blamed: 0 }));
+    return w;
+  };
   const payoutDurations = new Map<string, number[]>();
   const blame = makeBlame(allSwaps, now);
   const swapCounts = new Map<string, { mints: number; melts: number; errors: number; pending: number; lastOkAt: number; lastBlamedAt: number }>();
@@ -189,13 +190,20 @@ async function computeOverview(now: number) {
   for (const s of allSwaps) {
     const t = s.timestamp.getTime();
     const inMonth = now - t < 30 * DAY;
+    const inWeek = now - t < 7 * DAY;
     if (s.status === 'success') {
       if (inMonth) {
+        counts(s.destMintId).mints++;
+        counts(s.sourceMintId).melts++;
         const list = payoutDurations.get(s.sourceMintId);
         if (list) list.push(s.duration);
         else payoutDurations.set(s.sourceMintId, [s.duration]);
         monthOf(s.sourceMintId).ok++;
         monthOf(s.destMintId).ok++;
+      }
+      if (inWeek) {
+        weekOf(s.sourceMintId).out++;
+        weekOf(s.destMintId).in++;
       }
       for (const id of [s.sourceMintId, s.destMintId]) counts(id).lastOkAt = Math.max(counts(id).lastOkAt, t);
       continue;
@@ -203,6 +211,7 @@ async function computeOverview(now: number) {
     const blamed = blame(s);
     if (!blamed) continue;
     const c = counts(blamed);
+    if (inWeek) weekOf(blamed).blamed++;
     if (s.status === 'pending') c.pending++;
     else {
       c.errors++;
@@ -216,13 +225,11 @@ async function computeOverview(now: number) {
     const u = uptime.get(m.id), u24 = u?.d1, u7 = u?.d7, u30 = u?.d30;
     const uptime24h = u24 ? pct(u24.up, u24.total) : null;
     const c = swapCounts.get(m.id) ?? { mints: 0, melts: 0, errors: 0, pending: 0, lastOkAt: 0, lastBlamedAt: 0 };
-    c.mints = mintedCount.get(m.id) ?? 0;
-    c.melts = meltedCount.get(m.id) ?? 0;
     const recentFailure = now - c.lastBlamedAt < DAY && c.lastBlamedAt > c.lastOkAt;
     const mo = month.get(m.id) ?? { ok: 0, blamed: 0 };
     const rv = reviewBy.get(m.id);
     const uptime30d = u30 ? pct(u30.up, u30.total) : null;
-    const { score, parts: scoreParts } = computeScore({
+    const scored = computeScore({
       uptime30d,
       swapOk: mo.ok,
       swapBlamed: mo.blamed,
@@ -230,6 +237,10 @@ async function computeOverview(now: number) {
       reviewAvg: rv?.avg ?? null,
       reviewCount: rv?.count ?? 0,
     });
+    const score = m.isTest ? null : scored.score;
+    const scoreParts = scored.parts;
+    const w = week.get(m.id) ?? { out: 0, in: 0, blamed: 0 };
+    const uptime7d = u7 ? pct(u7.up, u7.total) : null;
     const bal = balanceBy.get(m.id) ?? { unspent: 0, reserved: 0 };
     const h = history.get(m.id);
     const measured = l?.status === 'offline' && h ? (h.lastUp ?? h.first) : null;
@@ -245,7 +256,8 @@ async function computeOverview(now: number) {
       latestError: l?.error ?? null,
       checkedAt: l ? Number(l.timestamp) : null,
       uptime24h,
-      uptime7d: u7 ? pct(u7.up, u7.total) : null,
+      uptime7d,
+      week: w,
       uptime30d,
       score,
       scoreParts,
@@ -261,11 +273,11 @@ async function computeOverview(now: number) {
     };
   });
 
-  const byStatus = (status: string) => swapTotals.find(t => t.status === status);
-  const total = swapTotals.reduce((n, t) => n + t._count._all, 0);
-  const pending = byStatus('pending')?._count._all ?? 0;
-  const ok = byStatus('success');
-  const okCount = ok?._count._all ?? 0;
+  const monthSwaps = allSwaps.filter(s => now - s.timestamp.getTime() < 30 * DAY);
+  const total = monthSwaps.length;
+  const pending = monthSwaps.filter(s => s.status === 'pending').length;
+  const okSwaps = monthSwaps.filter(s => s.status === 'success');
+  const okCount = okSwaps.length;
   const days = lastDays(30, now);
   const perDay = new Map(days.map(d => [d, { success: 0, failed: 0, pending: 0 }]));
   for (const s of allSwaps) {
@@ -273,19 +285,22 @@ async function computeOverview(now: number) {
     if (bucket) bucket[s.status as 'success' | 'failed' | 'pending']++;
   }
 
-  const newest = newestVersions(rows.filter(r => !r.aliasOfId && !r.longOffline).map(r => r.version));
+  const newest = newestVersions(rows.filter(r => !r.aliasOfId && !r.longOffline && !r.isTest).map(r => r.version));
   const aliasRows = rows.filter(r => r.aliasOfId);
   const primaries = rows
     .filter(r => !r.aliasOfId)
     .map(r => ({
       ...r,
+      recommended: isRecommended(r, now),
       versionStatus: versionStatus(r.version, newest),
       aliases: aliasRows
         .filter(a => a.aliasOfId === r.id)
         .map(a => ({ id: a.id, url: a.url, name: a.name, latestStatus: a.latestStatus, latency: a.latestLatency, uptime24h: a.uptime24h })),
     }));
 
-  const balance = primaries.filter(r => !r.isTest).reduce((s, r) => s + r.balance, 0);
+  const counted = rows.filter(r => !r.isTest);
+  const balance = counted.reduce((s, r) => s + r.balance, 0);
+  const real = primaries.filter(r => !r.isTest);
   const online = primaries.filter(r => r.latestStatus === 'online');
   const senders = online.filter(r => r.balance >= MIN_SWAP + FEE_BUFFER).length;
   const receivers = online.filter(r => !r.isTest && now - r.addedAt.getTime() >= MIN_AGE_MS).length;
@@ -299,22 +314,30 @@ async function computeOverview(now: number) {
       balance,
       feesPerDay: Math.round(feesPerDay),
       runwayDays: feesPerDay > 0 ? Math.max(0, balance - STOP_BELOW) / feesPerDay : null,
-      reserved: primaries.reduce((s, r) => s + r.reserved, 0),
-      donated: primaries.reduce((s, r) => s + r.donated, 0),
-      online: primaries.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
-      audited: primaries.filter(r => r.latestStatus).length,
-      tracked: primaries.length,
+      reserved: counted.reduce((s, r) => s + r.reserved, 0),
+      donated: rows.reduce((s, r) => s + r.donated, 0),
+      online: real.filter(r => r.latestStatus && r.latestStatus !== 'offline').length,
+      audited: real.filter(r => r.latestStatus).length,
+      tracked: real.length,
+      recommended: real.filter(r => r.recommended).length,
       swaps: total,
       swaps24h: allSwaps.filter(s => now - s.timestamp.getTime() < DAY).length,
       pending,
       successRate: total - pending ? (okCount / (total - pending)) * 100 : null,
-      swapped: ok?._sum.amount ?? 0,
-      fees: ok?._sum.fee ?? 0,
-      avgSwapMs: okCount ? Math.round((ok?._sum.duration ?? 0) / okCount) : null,
+      swapped: okSwaps.reduce((n, x) => n + x.amount, 0),
+      fees: okSwaps.reduce((n, x) => n + x.fee, 0),
+      avgSwapMs: okCount ? Math.round(okSwaps.reduce((n, x) => n + x.duration, 0) / okCount) : null,
       lastCheck: latest.length ? Math.max(...latest.map(l => Number(l.timestamp))) : null,
     },
     swapsPerDay: days.map(d => ({ day: d, ...perDay.get(d)! })),
   };
+}
+
+export const RECOMMENDED_UPTIME = 99;
+
+export function isRecommended(r: { isTest: boolean; latestStatus?: string; uptime7d: number | null; addedAt: Date; pending: number; reserved: number; week: { out: number; in: number; blamed: number } }, now: number) {
+  return !r.isTest && r.latestStatus === 'online' && (r.uptime7d ?? 0) >= RECOMMENDED_UPTIME && now - r.addedAt.getTime() >= 7 * DAY &&
+    r.pending === 0 && r.reserved === 0 && r.week.blamed === 0 && r.week.out > 0 && r.week.in > 0;
 }
 
 export async function getRecentSwaps(opts: { mintId?: string; take?: number } = {}) {
@@ -433,7 +456,7 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
   for (const s of inRange) {
     const t = s.timestamp.getTime();
     const key = swapBuckets === HOUR ? String(Math.floor(t / HOUR)) : dayKey(t);
-    const b = swapMap.get(key);
+    const b = swapMap.get(key) ?? (t < swapKeys[0].t ? swapMap.get(swapKeys[0].key) : undefined);
     if (b) b[s.status as 'success' | 'failed' | 'pending']++;
   }
 
@@ -464,13 +487,14 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
     else if (blame(s) === id) lastBlamedAt = Math.max(lastBlamedAt, t);
   }
   const lastAudit = audits[audits.length - 1];
+  const freshAudit = lastAudit && now - lastAudit.timestamp.getTime() < 2 * HOUR ? lastAudit : undefined;
   const uptime24h = pct(windows['24h'].up, windows['24h'].total);
 
   return {
     now,
     mint: { ...mint, nuts: mint.nuts ? (JSON.parse(mint.nuts) as string[]) : [] },
     ...stateFor({
-      latestStatus: lastAudit?.status,
+      latestStatus: freshAudit?.status,
       uptime24h,
       lastSwapFailed: now - lastBlamedAt < DAY && lastBlamedAt > lastOkAt,
       pendingSwaps: swaps.filter(s => s.status === 'pending' && blame(s) === id).length,
@@ -519,7 +543,7 @@ export type GraphEdge = { source: string; dest: string; paid: number; failed: nu
 export async function getSwapGraph(days = 30, now = Date.now()) {
   const rows = await prisma.swap.groupBy({
     by: ['sourceMintId', 'destMintId', 'status'],
-    where: { timestamp: { gte: new Date(now - days * DAY) }, kind: 'swap', ...COUNTED_SWAP },
+    where: { timestamp: { gte: new Date(now - days * DAY) }, ...COUNTED_SWAP },
     _count: { _all: true },
     _sum: { amount: true },
     _avg: { duration: true },

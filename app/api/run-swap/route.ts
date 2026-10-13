@@ -49,13 +49,13 @@ export async function GET(request: Request) {
 
     const balances = await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'unspent' }, _sum: { amount: true } });
     const balanceOf = new Map(balances.map(b => [b.mintId, b._sum.amount ?? 0]));
-    const total = [...balanceOf.values()].reduce((s, b) => s + b, 0);
+    const total = budget.total;
 
     const home = homeMintUrl();
     const backoff = await loadBackoff(now);
     const trust = await trustState(now);
     const history = await prisma.swap.findMany({
-      where: { kind: 'swap', timestamp: { gte: new Date(now - HISTORY_DAYS * DAY) }, ...COUNTED },
+      where: { timestamp: { gte: new Date(now - HISTORY_DAYS * DAY) }, ...COUNTED },
       select: { sourceMintId: true, destMintId: true, status: true, timestamp: true },
       orderBy: { timestamp: 'desc' },
     });

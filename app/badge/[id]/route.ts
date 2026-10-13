@@ -16,13 +16,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const since = new Date(Date.now() - 30 * DAY);
   const [last, total, up] = await Promise.all([
-    prisma.auditLog.findFirst({ where: { mintId: id, location: 'prague' }, orderBy: { timestamp: 'desc' }, select: { status: true } }),
+    prisma.auditLog.findFirst({ where: { mintId: id, location: 'prague' }, orderBy: { timestamp: 'desc' }, select: { status: true, timestamp: true } }),
     prisma.auditLog.count({ where: { mintId: id, location: 'prague', timestamp: { gte: since } } }),
     prisma.auditLog.count({ where: { mintId: id, location: 'prague', timestamp: { gte: since }, status: { not: 'offline' } } }),
   ]);
 
   const uptime = total ? (up / total) * 100 : null;
-  const online = !!last && last.status !== 'offline';
+  const online = !!last && last.status !== 'offline' && Date.now() - last.timestamp.getTime() < 2 * 3_600_000;
   const label = 'cashu audit';
   const value = !last ? 'not checked' : `${online ? 'online' : 'offline'}${uptime != null ? ` · ${uptime >= 99.995 ? '100' : uptime.toFixed(uptime >= 99.9 ? 2 : 1)} %` : ''}`;
   const color = !last ? '#6f7490' : !online ? '#d03b3b' : uptime != null && uptime < 99 ? '#b07800' : '#0a7d0a';

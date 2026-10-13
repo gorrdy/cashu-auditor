@@ -84,6 +84,7 @@ model Proof {
 model Swap {
   id           String   @id @default(cuid())
   kind         String   @default("swap")
+  operatorId   String?
   sourceMintId String
   destMintId   String
   sourceMint   Mint     @relation("SwapSource", fields: [sourceMintId], references: [id])
@@ -400,4 +401,13 @@ model BalanceEntry {
   createdAt   DateTime @default(now())
 
   @@index([operatorId, createdAt])
+}
+
+model DiscoveryCandidate {
+  url         String    @id
+  firstSeen   DateTime  @default(now())
+  lastTriedAt DateTime?
+  failures    Int       @default(0)
+  aliasOfId   String?
+  reason      String?
 }

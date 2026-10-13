@@ -36,6 +36,10 @@ const SORT_FIRST: Record<SortKey, 'asc' | 'desc'> = { state: 'asc', name: 'asc',
 
 type Row = Awaited<ReturnType<typeof getOverview>>['mints'][number];
 
+function RecommendedChip() {
+  return <span className="rec-chip" title="Recommended: no attributed failure, payouts and receipts working and at least 99 % uptime over the last 7 days">Recommended</span>;
+}
+
 const compare: Record<SortKey, (a: Row, b: Row) => number> = {
   state: (a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state],
   score: (a, b) => (a.score ?? -1) - (b.score ?? -1),
@@ -108,8 +112,9 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     (!params.unit || m.units.includes(params.unit))
   );
   const query = filterQuery(params, {}, false);
+  const pinned = (m: Row) => (m.isTest ? 2 : sort === 'score' && m.recommended ? 0 : 1);
   const sorted = [...filtered].sort((a, b) =>
-    (dir === 'asc' ? 1 : -1) * compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b)
+    pinned(a) - pinned(b) || (dir === 'asc' ? 1 : -1) * compare[sort](a, b) || compare.state(a, b) || compare.latency(a, b) || compare.name(a, b)
   );
   const showAll = params.all === '1' || terms.length > 0 || sorted.length <= TOP_MINTS + 2;
   const rows = showAll ? sorted : sorted.slice(0, TOP_MINTS);
@@ -143,7 +148,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {allActive.length}</span></div>
+            <div className="hero-num">{totals.online}<span className="soft" style={{ fontSize: 28, fontWeight: 500 }}> / {allActive.filter(m => !m.isTest).length}</span></div>
             <div className="small soft">mints answering now · checked {fmtAgo(now, totals.lastCheck)}</div>
           </div>
         </div>
@@ -151,17 +156,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
       <section className="section tiles" aria-label="Summary">
         <div className="tile">
-          <div className="tile-label">Swap success</div>
+          <div className="tile-label">Swap success, 30 days</div>
           <div className="tile-value">{fmtPct(totals.successRate)}</div>
           <div className="tile-sub">{totals.swaps} swaps · {totals.swaps24h} in 24 h{totals.pending ? ` · ${totals.pending} pending` : ''}</div>
         </div>
         <div className="tile">
-          <div className="tile-label">Moved over Lightning</div>
+          <div className="tile-label">Moved over Lightning, 30 days</div>
           <div className="tile-value">{totals.swapped.toLocaleString('en-US')}<small>sat</small></div>
           <div className="tile-sub">Fees paid {fmtSat(totals.fees)}</div>
         </div>
         <div className="tile">
-          <div className="tile-label">Average swap time</div>
+          <div className="tile-label">Average swap time, 30 days</div>
           <div className="tile-value">{fmtMs(totals.avgSwapMs)}</div>
           <div className="tile-sub">Quote to minted proofs</div>
         </div>
@@ -263,8 +268,9 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                   </div>
                   <span className="mc-state"><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></span>
                 </div>
-                {(m.versionStatus?.outdated || m.isTest || m.aliases.length > 0) && (
+                {(m.recommended || m.versionStatus?.outdated || m.isTest || m.aliases.length > 0) && (
                   <div className="mc-tags">
+                    {m.recommended && <RecommendedChip />}
                     {m.versionStatus?.outdated && <span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span>}
                     {m.isTest && <span className="mc-tag">test mint</span>}
                     {m.aliases.length > 0 && <span className="mc-tag" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</span>}
@@ -313,7 +319,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <div className="mint-cell">
                       <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                       <div style={{ minWidth: 0 }}>
-                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{m.isNew && <span className="new-chip">New</span>}{mintLabel(m)}</Link>
+                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{m.isNew && <span className="new-chip">New</span>}{mintLabel(m)}{m.recommended && <RecommendedChip />}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
                         {m.versionStatus?.outdated && <div><span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span></div>}
                         {m.isTest && <div className="url" title="Test mint: may issue unbacked ecash. Checked, but not used as a swap destination.">test mint</div>}

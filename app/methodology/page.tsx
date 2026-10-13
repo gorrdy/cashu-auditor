@@ -88,14 +88,28 @@ export default function Methodology() {
         <li><StateBadge kind="ok" /> answered the last check, at least 99 % uptime in 24 h, last swap through it paid.</li>
         <li><StateBadge kind="warn" /> answering, but uptime in 24 h is below 99 %, keysets are missing, a swap is pending, or the last swap through it failed at its step.</li>
         <li><StateBadge kind="error" /> did not answer the last check.</li>
-        <li><StateBadge kind="unknown" /> added but not checked yet.</li>
+        <li><StateBadge kind="unknown" /> added but not checked yet, or not checked in the last 2 hours.</li>
         <li>Mints that have not answered for more than 30 days are listed separately below the table. They are still checked and return automatically once they answer.</li>
       </ul>
+
+      <h2 id="recommended">Recommended mints</h2>
+      <p>
+        A mint is marked <strong>Recommended</strong> and listed first when, over the last 7 days, it was online at the last
+        check, answered at least 99 % of checks, paid out and received at least one swap each, had no failure attributed to
+        it and holds none of the auditor&apos;s sats in a stuck payment. It must be tracked for at least 7 days and must not be a test mint. Routing failures
+        that are not attributed to the mint do not count against it.
+      </p>
+
+      <h2>Test mints</h2>
+      <p>
+        Mints that describe themselves as test mints are checked but not scored or recommended, are left out of the totals
+        and of the newest software version, and are listed after the other mints.
+      </p>
 
       <h2 id="api">Open data</h2>
       <p>Everything on this site is available without a key. Responses are cached for 60 seconds.</p>
       <ul>
-        <li><span className="mono">GET /api/v1/mints</span> all mints with state, score, uptime and spec, or <span className="mono">/api/v1/mints.csv</span></li>
+        <li><span className="mono">GET /api/v1/mints</span> all mints with state, score, uptime, spec and swap counts for 30 days, or <span className="mono">/api/v1/mints.csv</span></li>
         <li><span className="mono">GET /api/v1/mints/&#123;id&#125;</span> one mint with daily uptime, latency breakdown, swaps, integrity checks and changes</li>
         <li><span className="mono">GET /api/v1/swaps?limit=100</span> recent swaps</li>
         <li><span className="mono">GET /badge/&#123;id&#125;.svg</span> an uptime badge for mint operators to embed</li>

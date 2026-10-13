@@ -22,6 +22,7 @@ export async function mintList() {
       state: m.state,
       reasons: m.reasons,
       score: m.score,
+      recommended: m.recommended,
       uptime24h: m.uptime24h,
       uptime7d: m.uptime7d,
       uptime30d: m.uptime30d,

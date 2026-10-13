@@ -145,7 +145,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
           ? prisma.mint.findMany({ where: { lnPubkey: self.lnPubkey, id: { not: id }, aliasOfId: null }, select: { id: true, url: true, name: true } })
           : Promise.resolve([]),
         prisma.swap.aggregate({ where: { destMintId: id, status: 'success', timestamp: { gte: new Date(now - 30 * DAY) } }, _max: { amount: true } }),
-        prisma.swap.groupBy({ by: ['status'], where: { destMintId: id, kind: 'swap', status: { not: 'pending' }, timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP }, _count: { _all: true } }),
+        prisma.swap.groupBy({ by: ['status'], where: { destMintId: id, status: { not: 'pending' }, timestamp: { gte: new Date(now - 7 * DAY) }, ...COUNTED_SWAP }, _count: { _all: true } }),
       ]);
       const paid = incoming.find(r => r.status === 'success')?._count._all ?? 0;
       const attempts = incoming.reduce((n, r) => n + r._count._all, 0);
