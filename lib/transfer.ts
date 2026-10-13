@@ -195,6 +195,10 @@ async function finish(swap: Swap, status: 'success' | 'failed' | 'pending', erro
     },
   });
   publish('swap', { status, amount: swap.amount });
+  if (status === 'success' && swap.kind === 'topup' && swap.operatorId) {
+    const { creditTopupSwap } = await import('./operator/billing');
+    await creditTopupSwap(swap.operatorId, swap.id, swap.amount).catch(e => console.error('creditTopupSwap failed:', e));
+  }
   return {
     status,
     swapId: swap.id,
@@ -226,9 +230,10 @@ export async function transfer(opts: {
   dest: MintRef;
   amount?: number;
   maxAmount?: number;
-  kind?: 'swap' | 'consolidate';
+  kind?: 'swap' | 'consolidate' | 'topup';
+  operatorId?: string;
 }): Promise<TransferResult> {
-  const { source, dest, kind = 'swap' } = opts;
+  const { source, dest, kind = 'swap', operatorId } = opts;
   const started = Date.now();
   let stage = 'mint_quote';
   let target = opts.amount ?? 0;
@@ -236,7 +241,7 @@ export async function transfer(opts: {
   const fail = async (error: string): Promise<TransferResult> => {
     const duration = Date.now() - started;
     const swap = await prisma.swap.create({
-      data: { kind, sourceMintId: source.id, destMintId: dest.id, amount: target, status: 'failed', stage, duration, error },
+      data: { kind, operatorId, sourceMintId: source.id, destMintId: dest.id, amount: target, status: 'failed', stage, duration, error },
     });
     publish('swap', { status: 'failed', amount: target });
     return { status: 'failed', swapId: swap.id, amount: target, fee: 0, duration, stage, error, fundsMoved: false };
@@ -313,6 +318,7 @@ export async function transfer(opts: {
   let swap = await prisma.swap.create({
     data: {
       kind,
+      operatorId,
       sourceMintId: source.id,
       destMintId: dest.id,
       amount: target,

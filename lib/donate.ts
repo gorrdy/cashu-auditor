@@ -1,11 +1,11 @@
 import QRCode from 'qrcode';
-import { Amount, getTokenMetadata, PaymentRequest, PaymentRequestTransportType, type ProofLike } from '@cashu/cashu-ts';
+import { Amount, getEncodedToken, getTokenMetadata, PaymentRequest, PaymentRequestTransportType, type ProofLike } from '@cashu/cashu-ts';
 import { prisma } from './prisma';
 import { createWallet, restoreProofs } from './wallet';
 import { consolidateToHomeMint, homeMintUrl } from './consolidate';
 import { withWalletLock } from './lock';
 import { assertPublicMintUrl, normalizeMintUrl } from './mintUrl';
-import { errorMessage, storeProofs, withTimeout } from './transfer';
+import { errorMessage, storeProofs, toCashu, withTimeout } from './transfer';
 import { publish } from './events';
 import { DAY, HOUR } from './constants';
 import { SITE_URL } from './site';
@@ -51,7 +51,7 @@ const donationCredit: Credit = async (mintId, amount) => {
   return `Thank you. Received ${amount} sat.`;
 };
 
-async function redeem(mintUrl: string, token: string | ProofLike[], credit: Credit = donationCredit): Promise<DonateResult> {
+async function redeem(mintUrl: string, token: string | ProofLike[], credit: Credit = donationCredit, consolidate = true): Promise<DonateResult> {
   const result = await withWalletLock('donate', async (): Promise<DonateResult> => {
     try {
       await assertPublicMintUrl(mintUrl);
@@ -64,11 +64,13 @@ async function redeem(mintUrl: string, token: string | ProofLike[], credit: Cred
       const message = await credit(mint.id, amount);
 
       let note = '';
-      try {
-        const moved = await consolidateToHomeMint(mint.id);
-        if (moved?.status === 'success') note = ` Moved ${moved.amount} sat to the home mint.`;
-      } catch (error) {
-        console.error('consolidateToHomeMint failed:', error);
+      if (consolidate) {
+        try {
+          const moved = await consolidateToHomeMint(mint.id);
+          if (moved?.status === 'success') note = ` Moved ${moved.amount} sat to the home mint.`;
+        } catch (error) {
+          console.error('consolidateToHomeMint failed:', error);
+        }
       }
       return { ok: `${message}${note}` };
     } catch (error) {
@@ -80,7 +82,17 @@ async function redeem(mintUrl: string, token: string | ProofLike[], credit: Cred
   return result ?? { error: BUSY };
 }
 
-export async function redeemToken(raw: string, credit?: Credit): Promise<DonateResult> {
+export async function refundToken(mint: { id: string; url: string }, amount: number) {
+  const wallet = createWallet(mint.url);
+  await withTimeout(wallet.loadMint());
+  const stored = await prisma.proof.findMany({ where: { mintId: mint.id, state: 'unspent' } });
+  const { keep, send } = await withTimeout(wallet.send(amount, stored.map(toCashu)), 30_000);
+  await prisma.proof.deleteMany({ where: { secret: { in: stored.map(p => p.secret) }, state: 'unspent' } });
+  await storeProofs(mint.id, keep);
+  return getEncodedToken({ mint: mint.url, proofs: send, unit: 'sat' });
+}
+
+export async function redeemToken(raw: string, credit?: Credit, consolidate = true): Promise<DonateResult> {
   if (!raw) return { error: 'Paste a Cashu token.' };
   let meta;
   try {
@@ -91,7 +103,7 @@ export async function redeemToken(raw: string, credit?: Credit): Promise<DonateR
   const mintUrl = normalizeMintUrl(meta.mint ?? '');
   if (!mintUrl) return { error: 'Token has no valid https mint URL.' };
   if ((meta.unit ?? 'sat') !== 'sat') return { error: 'Only sat tokens are accepted.' };
-  return redeem(mintUrl, raw, credit);
+  return redeem(mintUrl, raw, credit, consolidate);
 }
 
 type PayloadProof = { id: string; amount: number; secret: string; C: string };

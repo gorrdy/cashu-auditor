@@ -171,7 +171,7 @@ function Balance({ balance, mints, homeHost }: { balance: number; mints: number;
           })}>{pending ? 'Creating invoice…' : `Top up ${amount.toLocaleString('en')} sat with Lightning`}</button>
           <details className="op-token">
             <summary>Top up with a Cashu token</summary>
-            {homeHost && <p className="small soft">Tokens from {homeHost} only.</p>}
+            {homeHost && <p className="small soft">Tokens from other mints are paid over Lightning to {homeHost} right away; the amount that arrives, about 2 % less, is credited.</p>}
             <textarea className="field mono" rows={2} placeholder="cashuB…" value={token} onChange={e => setToken(e.target.value)} />
             <button type="button" className="btn secondary" disabled={pending || !token.trim()} onClick={() => start(async () => { setResult(await topupToken(token)); setToken(''); router.refresh(); })}>Redeem token</button>
           </details>

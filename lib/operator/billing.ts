@@ -2,10 +2,9 @@ import { getTokenMetadata } from '@cashu/cashu-ts';
 import { prisma } from '../prisma';
 import { DAY } from '../constants';
 import { withWalletLock } from '../lock';
-import { errorMessage } from '../transfer';
-import { createHomeQuote, homeMint, qrSvg, redeemToken, settleQuote, type QuoteStore } from '../donate';
+import { createHomeQuote, homeMint, qrSvg, redeemToken, refundToken, settleQuote, type QuoteStore } from '../donate';
+import { errorMessage, transfer } from '../transfer';
 import { homeMintUrl } from '../consolidate';
-import { normalizeMintUrl } from '../mintUrl';
 import { SITE_URL } from '../site';
 import { sendToChannel } from '../notify/channels';
 import { recordRevenue } from './payout';
@@ -91,21 +90,38 @@ export async function settleTopupInvoices() {
 
 export async function topupWithToken(operatorId: string, raw: string) {
   let amount = 0;
-  let mint = '';
   try {
-    const meta = getTokenMetadata(raw.trim());
-    amount = Number(meta.amount);
-    mint = normalizeMintUrl(meta.mint ?? '') ?? '';
+    amount = Number(getTokenMetadata(raw.trim()).amount);
   } catch {
     return { error: 'Not a valid Cashu token.' };
   }
-  const home = homeMintUrl();
-  if (!home || mint !== home) return { error: `Only tokens from ${home ? new URL(home).hostname : 'the home mint'} are accepted. Use Lightning for any other mint.` };
   if (amount < 100) return { error: 'Top up at least 100 sat.' };
-  return redeemToken(raw.trim(), async (_mintId, received) => {
-    await credit(operatorId, received, 'topup', 'Cashu token top-up', 'token');
-    return `Added ${received.toLocaleString('en')} sat to your balance.`;
-  });
+  const homeUrl = homeMintUrl();
+  if (!homeUrl) return { error: 'Payments are not available.' };
+  const homeHost = new URL(homeUrl).hostname;
+  return redeemToken(raw.trim(), async (mintId, received) => {
+    const source = await prisma.mint.findUniqueOrThrow({ where: { id: mintId }, select: { id: true, url: true } });
+    if (source.url === homeUrl) {
+      await credit(operatorId, received, 'topup', 'Cashu token top-up', 'token');
+      return `Added ${received.toLocaleString('en')} sat to your balance.`;
+    }
+    const home = await prisma.mint.upsert({ where: { url: homeUrl }, update: {}, create: { url: homeUrl } });
+    const net = received - Math.max(2, Math.ceil(received * 0.02));
+    const moved = await transfer({ source, dest: home, kind: 'topup', operatorId, amount: net });
+    if (moved.status === 'success') return `Moved the token to ${homeHost} and added ${net.toLocaleString('en')} sat to your balance.`;
+    if (moved.status === 'pending') return `Received ${received.toLocaleString('en')} sat. The payment to ${homeHost} is still in flight; ${net.toLocaleString('en')} sat are added as soon as it settles.`;
+    if (!moved.fundsMoved) {
+      const back = await refundToken(source, received).catch(() => null);
+      if (back) return `Could not move the token to ${homeHost} (${moved.error ?? 'unknown error'}). Nothing was charged; here is your token back: ${back}`;
+    }
+    console.error('topup transfer failed', moved.swapId, moved.error);
+    return `Could not move the token to ${homeHost} (${moved.error ?? 'unknown error'}). Contact us with reference ${moved.swapId}.`;
+  }, false);
+}
+
+export async function creditTopupSwap(operatorId: string, swapId: string, amount: number) {
+  const note = `Cashu token top-up via ${swapId}`;
+  await credit(operatorId, amount, 'topup', note, 'token', async tx => !(await tx.balanceEntry.findFirst({ where: { operatorId, note }, select: { id: true } })));
 }
 
 async function tell(operatorId: string, title: string, body: string) {
