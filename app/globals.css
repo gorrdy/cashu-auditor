@@ -835,3 +835,7 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 }
 :root[data-env="dev"] .site-header { border-bottom: 3px solid var(--accent); }
 .env-badge { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 18px; font-weight: 800; letter-spacing: 0.08em; color: var(--on-accent); background: var(--accent); }
+
+.about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-top: 12px; }
+.about-grid h3 { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
+.about-grid p { margin: 0; font-size: 14px; line-height: 1.55; }

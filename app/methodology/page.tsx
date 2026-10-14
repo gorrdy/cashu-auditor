@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import StateBadge from '@/components/StateBadge';
 
-export const metadata: Metadata = { title: 'Methodology' };
+export const metadata: Metadata = {
+  title: 'Methodology: how Cashu mints are audited',
+  description: 'How Cashu Mints Auditor checks mint availability every 5 minutes, pays real sats over Lightning every day, attributes failures and scores and recommends mints.',
+  alternates: { canonical: '/methodology' },
+};
 
 export default function Methodology() {
   return (
@@ -114,6 +118,15 @@ export default function Methodology() {
         <li><span className="mono">GET /api/v1/swaps?limit=100</span> recent swaps</li>
         <li><span className="mono">GET /badge/&#123;id&#125;.svg</span> an uptime badge for mint operators to embed</li>
       </ul>
+
+      <h2 id="agents">For AI agents</h2>
+      <p>
+        The same data is available to AI assistants through an MCP server at <span className="mono">https://cashu.info/mcp</span>{' '}
+        (Streamable HTTP, read only, no key). Its tools recommend, search, compare and describe mints and list recent swaps.
+        The server card is at <a href="/.well-known/mcp.json">/.well-known/mcp.json</a>, a summary for language models at{' '}
+        <a href="/llms.txt">/llms.txt</a>, the full mint list in Markdown at <a href="/llms-full.txt">/llms-full.txt</a> and the
+        API description at <a href="/openapi.json">/openapi.json</a>.
+      </p>
 
       <h2>Funding</h2>
       <p>

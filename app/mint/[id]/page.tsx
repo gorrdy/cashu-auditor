@@ -17,6 +17,8 @@ import { computeScore } from '@/lib/score';
 import ScoreTrend from '@/components/ScoreTrend';
 import { fmtAgo, fmtDate, fmtDateTime, fmtDayKey, fmtDuration, fmtHour, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
 import { mintPage, SITE_URL } from '@/lib/site';
+import JsonLd from '@/components/JsonLd';
+import { breadcrumbs, graph } from '@/lib/seo';
 
 export const revalidate = 60;
 
@@ -25,7 +27,22 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ range?: 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const mint = isMintId(id) ? await prisma.mint.findUnique({ where: { id }, select: { name: true, url: true } }) : null;
-  return { title: mint ? mintLabel(mint) : 'Mint not found' };
+  if (!mint) return { title: 'Mint not found', robots: { index: false } };
+  const label = mintLabel(mint);
+  const row = (await getOverview()).mints.find(m => m.id === id);
+  const facts = row
+    ? [
+        row.recommended ? 'Recommended' : null,
+        row.score != null ? `score ${row.score}/100` : null,
+        row.uptime30d != null ? `uptime 30 d ${row.uptime30d.toFixed(2)} %` : null,
+        `${row.melts} payouts, ${row.mints} receipts, ${row.errors} failures in 30 d`,
+      ].filter(Boolean).join(', ')
+    : 'uptime, latency and Lightning payouts';
+  return {
+    title: `${label}: Cashu mint uptime, Lightning payouts and score`,
+    description: `Is ${label} a reliable Cashu mint? Live audit: ${facts}. Tested with real Lightning payments.`,
+    alternates: { canonical: `/mint/${id}` },
+  };
 }
 
 export default async function MintPage({ params, searchParams }: Props) {
@@ -62,6 +79,17 @@ export default async function MintPage({ params, searchParams }: Props) {
 
   return (
     <>
+      <JsonLd data={graph(
+        breadcrumbs([{ name: 'Mints', path: '/' }, { name: label, path: `/mint/${mint.id}` }]),
+        {
+          '@type': 'WebPage',
+          url: mintPage(mint.id),
+          name: `${label} Cashu mint audit`,
+          dateModified: new Date(d.now).toISOString(),
+          about: { '@type': 'Service', name: label, url: mint.url, serviceType: 'Cashu ecash mint', areaServed: 'Worldwide', description: mint.description ?? undefined },
+          isPartOf: { '@id': `${SITE_URL}/#website` },
+        }
+      )} />
       <p className="small"><Link href="/">← All mints</Link></p>
 
       <section style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 12 }}>

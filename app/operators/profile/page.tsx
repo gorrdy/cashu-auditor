@@ -6,7 +6,7 @@ import { profileOf } from '@/lib/operator/avatar';
 import { fmtDate } from '@/components/format';
 import Profile from '@/components/operator/Profile';
 
-export const metadata: Metadata = { title: 'Profile' };
+export const metadata: Metadata = { title: 'Profile', robots: { index: false, follow: false } };
 
 export default async function ProfilePage() {
   const operator = await currentOperator();

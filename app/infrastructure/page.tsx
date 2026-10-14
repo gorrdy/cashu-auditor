@@ -4,7 +4,11 @@ import { getInfrastructure, type Bucket, type InfraMint } from '@/lib/infra';
 import { StateIcon } from '@/components/StateBadge';
 import { fmtCapacity, NodeName, reachability } from '@/components/MintSections';
 
-export const metadata: Metadata = { title: 'Infrastructure' };
+export const metadata: Metadata = {
+  title: 'Cashu mint infrastructure: Lightning nodes, hosting and software',
+  description: 'Which Lightning nodes, hosting providers, countries and mint software the public Cashu mints rely on, and where they share a single point of failure.',
+  alternates: { canonical: '/infrastructure' },
+};
 
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 

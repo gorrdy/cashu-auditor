@@ -16,6 +16,8 @@ import DonateDialog, { DonateButton } from '@/components/Donate';
 import { cashuRequestWithQr } from '@/lib/donate';
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
+import JsonLd from '@/components/JsonLd';
+import { ORGANIZATION, SITE_NAME, graph } from '@/lib/seo';
 
 const jakarta = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
@@ -33,10 +35,15 @@ const DEV = process.env.APP_ENV === 'dev';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: DEV ? { default: '[dev] Cashu Mints Auditor', template: '[dev] %s · Cashu Mints Auditor' } : { default: 'Cashu Mints Auditor', template: '%s · Cashu Mints Auditor' },
+  title: DEV ? { default: '[dev] Cashu Mints Auditor', template: '[dev] %s · Cashu Mints Auditor' } : { default: 'Cashu Mints Auditor: live Cashu mint list and reliability', template: '%s · Cashu Mints Auditor' },
+  applicationName: SITE_NAME,
+  keywords: ['Cashu', 'Cashu mint', 'Cashu mints list', 'ecash', 'Chaumian ecash', 'Bitcoin', 'Lightning Network', 'Nutshell', 'CDK', 'mint uptime', 'Bitcoin privacy'],
+  alternates: { types: { 'text/plain': '/llms.txt' } },
+  openGraph: { siteName: SITE_NAME, type: 'website', locale: 'en_US' },
+  twitter: { card: 'summary_large_image' },
   ...(DEV ? { robots: { index: false, follow: false } } : {}),
   manifest: '/manifest.webmanifest',
-  description: 'Independent proof that Cashu mints pay. Uptime, latency and real Lightning swaps between public Cashu mints.',
+  description: 'Find a reliable Cashu mint. Live list of Cashu ecash mints for Bitcoin with uptime, latency and real Lightning payouts tested every day.',
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -47,6 +54,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en" data-env={DEV ? 'dev' : undefined} className={`${jakarta.variable} ${jetbrains.variable}`}>
       <body>
+        <JsonLd data={graph(ORGANIZATION, {
+          '@type': 'WebSite',
+          '@id': `${SITE_URL}/#website`,
+          name: SITE_NAME,
+          url: SITE_URL,
+          description: 'Live, independent reliability data for public Cashu ecash mints.',
+          publisher: { '@id': `${SITE_URL}/#org` },
+          potentialAction: { '@type': 'SearchAction', target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/?q={search_term_string}` }, 'query-input': 'required name=search_term_string' },
+        })} />
         <UpdateBanner version={buildVersion()} />
         <header className="site-header">
           <div className="wrap">
@@ -61,6 +77,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/#swaps" className="nav-optional nav-wide">Swaps</Link>
               <Link href="/compare" className="nav-optional nav-wide">Compare</Link>
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
+              <Link href="/learn" className="nav-optional nav-wide">Learn</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <span className="nav-optional"><AccountMenu profile={profile} /></span>
               <DonateButton className="btn nav-donate">Donate</DonateButton>
@@ -76,8 +93,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/">Mints</Link>
               <Link href="/compare">Compare</Link>
               <Link href="/infrastructure">Infrastructure</Link>
+              <Link href="/learn">What is Cashu</Link>
               <Link href="/methodology">Methodology</Link>
               <Link href="/operators">For operators</Link>
+              <a href="/llms.txt">For AI agents</a>
               <a href="https://github.com/gorrdy/cashu-auditor">Source</a>
             </nav>
             <span>Checks run from Prague, CZ · times in Europe/Prague</span>

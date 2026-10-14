@@ -10,7 +10,11 @@ import CompareForm from '@/components/CompareForm';
 import { fmtDate, fmtDayKey, fmtMs, fmtPct, fmtSat, hostOf, mintLabel } from '@/components/format';
 import { fmtPpk, keysetVersion } from '@/components/MintSections';
 
-export const metadata: Metadata = { title: 'Compare mints' };
+export const metadata: Metadata = {
+  title: 'Compare Cashu mints side by side',
+  description: 'Compare 2 to 5 Cashu mints on uptime, latency, Lightning payout speed, swap success and score, from live audit data.',
+  alternates: { canonical: '/compare' },
+};
 
 const MAX_MINTS = 5;
 

@@ -12,7 +12,11 @@ import { hostOf } from '@/components/format';
 import Login from '@/components/operator/Login';
 import Dashboard, { type ClaimView } from '@/components/operator/Dashboard';
 
-export const metadata: Metadata = { title: 'For mint operators' };
+export const metadata: Metadata = {
+  title: 'Alerts for Cashu mint operators',
+  description: 'Claim your Cashu mint and get alerts on Nostr, Telegram or push when it goes offline, loses its keyset, fails Lightning payouts or runs outdated software.',
+  alternates: { canonical: '/operators' },
+};
 
 const STATUS: Record<string, { ok?: string; error?: string }> = {
   'signed-in': { ok: 'You are signed in.' },

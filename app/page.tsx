@@ -1,4 +1,8 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+import JsonLd from '@/components/JsonLd';
+import { ORGANIZATION, graph } from '@/lib/seo';
+import { SITE_URL, mintPage } from '@/lib/site';
 import { getOverview, getRecentSwaps, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
 import { GraphLegend } from '@/components/GraphLegend';
 import MintNetwork from '@/components/MintNetworkLazy';
@@ -16,6 +20,11 @@ import { BoltIcon, CoinIcon } from '@/components/icons';
 import { fmtAgo, fmtDate, fmtDayKey, fmtDuration, fmtMs, fmtPct, fmtSat, hostOf, mintLabel, HOUR_MS } from '@/components/format';
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  title: { absolute: 'Cashu Mints: live list, uptime and Lightning reliability · Cashu Mints Auditor' },
+  alternates: { canonical: '/' },
+};
 
 const RUNWAY_SCALE_DAYS = 60;
 const TOP_MINTS = 6;
@@ -135,9 +144,34 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     .slice(firstActive < 0 ? 0 : Math.max(0, Math.min(firstActive, swapsPerDay.length - 7)))
     .map(d => ({ label: fmtDayKey(d.day), success: d.success, failed: d.failed, pending: d.pending }));
   const currentHour = Math.floor(now / HOUR_MS);
+  const ranked = mints.filter(m => !m.isTest && !m.longOffline).sort((a, b) => Number(b.recommended) - Number(a.recommended) || (b.score ?? -1) - (a.score ?? -1));
 
   return (
     <>
+      <JsonLd data={graph(
+        {
+          '@type': 'Dataset',
+          name: 'Cashu mint reliability audit',
+          description: 'Uptime, latency and real Lightning payout and receipt results for public Cashu ecash mints, measured every 5 minutes and every day.',
+          url: SITE_URL,
+          keywords: ['Cashu', 'ecash', 'Bitcoin', 'Lightning Network', 'mint uptime'],
+          creator: ORGANIZATION,
+          license: 'https://opensource.org/license/mit',
+          isAccessibleForFree: true,
+          dateModified: new Date(now).toISOString(),
+          temporalCoverage: `${new Date(now - 30 * 86_400_000).toISOString().slice(0, 10)}/..`,
+          distribution: [
+            { '@type': 'DataDownload', encodingFormat: 'application/json', contentUrl: `${SITE_URL}/api/v1/mints` },
+            { '@type': 'DataDownload', encodingFormat: 'text/csv', contentUrl: `${SITE_URL}/api/v1/mints.csv` },
+          ],
+        },
+        {
+          '@type': 'ItemList',
+          name: 'Cashu mints ranked by reliability',
+          numberOfItems: ranked.length,
+          itemListElement: ranked.slice(0, 20).map((m, i) => ({ '@type': 'ListItem', position: i + 1, name: mintLabel(m), url: mintPage(m.id) })),
+        }
+      )} />
       <section>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginTop: 8 }}>
           <div style={{ maxWidth: 640 }}>
@@ -409,6 +443,24 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       <section className="section">
         <div className="section-head"><h2 className="h2">Recent swaps</h2></div>
         <SwapTable swaps={recent} emptyText="No swaps yet. They start once the audit wallet holds ecash." />
+      </section>
+
+      <section className="section about-cashu">
+        <h2 className="h2">About Cashu mints</h2>
+        <div className="about-grid">
+          <div>
+            <h3>What is a Cashu mint?</h3>
+            <p className="soft">Cashu is private ecash for Bitcoin. A mint holds sats and issues blind-signed tokens you can send like cash, and pays them back out over the Lightning Network.</p>
+          </div>
+          <div>
+            <h3>Why audit them?</h3>
+            <p className="soft">Mints are custodial. This list shows which Cashu mints stay online and actually pay, measured with real Lightning payments every day, not self-reported.</p>
+          </div>
+          <div>
+            <h3>Which mint should I use?</h3>
+            <p className="soft">Start with mints marked Recommended, keep small balances and spread them over a few mints. <Link href="/learn">Read the guide</Link>.</p>
+          </div>
+        </div>
       </section>
 
     </>

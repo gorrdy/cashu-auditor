@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      { source: "/.well-known/mcp.json", destination: "/mcp/card" },
+      { source: "/.well-known/mcp/server-card.json", destination: "/mcp/card" },
+    ];
+  },
   async headers() {
     return [
       {
