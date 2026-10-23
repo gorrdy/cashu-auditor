@@ -1,5 +1,5 @@
 import { prisma } from './prisma';
-import { BLAME_SELECT, makeBlame } from './blame';
+import { BLAME_SELECT, makeBlame, unhonoredMints } from './blame';
 import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
@@ -71,12 +71,14 @@ function stateFor(opts: {
   uptime24h: number | null;
   lastSwapFailed: boolean;
   pendingSwaps: number;
+  unhonored?: boolean;
 }): { state: MintState; reasons: string[] } {
   if (!opts.latestStatus) return { state: 'unknown', reasons: ['Not audited yet'] };
   if (opts.latestStatus === 'offline') return { state: 'error', reasons: ['Offline at last check'] };
   const reasons: string[] = [];
   if (opts.latestStatus === 'degraded') reasons.push('Info responds, keysets do not');
   if (opts.uptime24h !== null && opts.uptime24h < 99) reasons.push(`Uptime ${opts.uptime24h.toFixed(1)} % in 24 h`);
+  if (opts.unhonored) reasons.push('Paid Lightning invoices not honored with ecash');
   if (opts.lastSwapFailed) reasons.push('Recent swap failure attributed to this mint');
   if (opts.pendingSwaps > 0) reasons.push(`${opts.pendingSwaps} swap(s) pending`);
   return { state: reasons.length ? 'warn' : 'ok', reasons };
@@ -181,6 +183,7 @@ async function computeOverview(now: number) {
   };
   const payoutDurations = new Map<string, number[]>();
   const blame = makeBlame(allSwaps, now);
+  const unhonored = unhonoredMints(allSwaps, now);
   const swapCounts = new Map<string, { mints: number; melts: number; errors: number; pending: number; lastOkAt: number; lastBlamedAt: number }>();
   const counts = (id: string) => {
     let c = swapCounts.get(id);
@@ -269,7 +272,7 @@ async function computeOverview(now: number) {
       reserved: bal.reserved,
       donated: donatedBy.get(m.id) ?? 0,
       ...c,
-      ...stateFor({ latestStatus: l?.status, uptime24h, lastSwapFailed: recentFailure, pendingSwaps: c.pending }),
+      ...stateFor({ latestStatus: l?.status, uptime24h, lastSwapFailed: recentFailure, pendingSwaps: c.pending, unhonored: unhonored.has(m.id) }),
     };
   });
 
@@ -498,6 +501,7 @@ export async function getMintDetail(id: string, range: RangeKey, now = Date.now(
       uptime24h,
       lastSwapFailed: now - lastBlamedAt < DAY && lastBlamedAt > lastOkAt,
       pendingSwaps: swaps.filter(s => s.status === 'pending' && blame(s) === id).length,
+      unhonored: unhonoredMints(swaps, now).has(id),
     }),
     lastAudit: lastAudit ? { ...lastAudit, timestamp: lastAudit.timestamp.getTime() } : null,
     uptime: Object.fromEntries(

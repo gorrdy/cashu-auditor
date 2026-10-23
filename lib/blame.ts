@@ -85,3 +85,20 @@ export function recentlyFailing(swaps: BlameSwap[], now = Date.now()) {
   }
   return new Set([...lastBad].filter(([id, t]) => now - t < DAY && t > (lastOk.get(id) ?? 0)).map(([id]) => id));
 }
+
+export const UNHONORED_LIMIT = 2;
+
+export function unhonoredMints(swaps: BlameSwap[], now = Date.now()) {
+  const sorted = [...swaps].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  const runs = new Map<string, { count: number; last: number }>();
+  for (const s of sorted) {
+    if (s.status === 'success') runs.delete(s.destMintId);
+    else if (s.status === 'failed' && s.stage === 'mint' && s.preimageOk === true && now - s.timestamp.getTime() < 7 * DAY) {
+      const r = runs.get(s.destMintId) ?? { count: 0, last: 0 };
+      r.count++;
+      r.last = s.timestamp.getTime();
+      runs.set(s.destMintId, r);
+    }
+  }
+  return new Map([...runs].filter(([, r]) => r.count >= UNHONORED_LIMIT).map(([id, r]) => [id, r.last]));
+}

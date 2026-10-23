@@ -1,13 +1,14 @@
-import { BLAME_SELECT, makeBlame, type BlameSwap } from './blame';
+import { BLAME_SELECT, makeBlame, unhonoredMints, type BlameSwap } from './blame';
 import { prisma } from './prisma';
 import { COUNTED_SWAP } from './counted';
 import { DAY, HOUR } from './constants';
 
 export const MAX_BACKOFF_MS = 24 * HOUR;
+export const MAX_BLAMED_BACKOFF_MS = 7 * DAY;
 
 export type Backoff = { failures: number; until: number; pending: boolean; sendUntil: number; receiveUntil: number; banned: boolean };
 
-const wait = (failures: number) => (failures ? Math.min(MAX_BACKOFF_MS, HOUR * 2 ** (failures - 1)) : 0);
+const wait = (failures: number) => (failures ? Math.min(MAX_BLAMED_BACKOFF_MS, HOUR * 2 ** (failures - 1)) : 0);
 
 export function computePairBackoff(swaps: BlameSwap[], now = Date.now()) {
   const blame = makeBlame(swaps, now);
@@ -58,11 +59,14 @@ export function computeBackoff(swaps: BlameSwap[], now = Date.now()) {
     role.failures++;
     role.last = s.timestamp.getTime();
   }
+  const unhonored = unhonoredMints(swaps, now);
+  for (const id of unhonored.keys()) get(id);
   const out = new Map<string, Backoff>();
   for (const [id, s] of state) {
-    if (!s.send.failures && !s.receive.failures && !s.pending && !s.banned) continue;
+    const unhonoredAt = unhonored.get(id);
+    if (!s.send.failures && !s.receive.failures && !s.pending && !s.banned && !unhonoredAt) continue;
     const sendUntil = s.send.failures ? s.send.last + wait(s.send.failures) : 0;
-    const receiveUntil = s.receive.failures ? s.receive.last + wait(s.receive.failures) : 0;
+    const receiveUntil = Math.max(s.receive.failures ? s.receive.last + wait(s.receive.failures) : 0, unhonoredAt ? unhonoredAt + 7 * DAY : 0);
     out.set(id, {
       failures: Math.max(s.send.failures, s.receive.failures),
       until: Math.max(sendUntil, receiveUntil),

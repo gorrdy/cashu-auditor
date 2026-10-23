@@ -14,11 +14,11 @@ describe('computeBackoff', () => {
     expect(b.failures).toBe(1);
     expect(b.until).toBe(now - 0.5 * HOUR + HOUR);
   });
-  it('doubles with every further failure and caps at 24 hours', () => {
+  it('doubles with every further failure', () => {
     const swaps = Array.from({ length: 8 }, (_, i) => s('A', 'X', 'failed', 'mint_quote', 10 - i));
     const b = computeBackoff(swaps, now).get('X')!;
     expect(b.failures).toBe(8);
-    expect(b.until - (now - 3 * HOUR)).toBe(24 * HOUR);
+    expect(b.until - (now - 3 * HOUR)).toBe(128 * HOUR);
   });
   it('resets after a success', () => {
     const swaps = [s('A', 'X', 'failed', 'mint_quote', 3), s('A', 'X', 'failed', 'mint_quote', 2), s('B', 'X', 'success', null, 1)];
@@ -59,5 +59,15 @@ describe('role-aware backoff', () => {
   it('stops payouts from a mint that faked a preimage', () => {
     const fake = { ...s('L', 'P', 'failed', 'melt', 1, 'fake'), preimageOk: false };
     expect(computeBackoff([fake, s('L', 'Q', 'success', null, 0.5)], now).get('L')!.banned).toBe(true);
+  });
+  it('stops sending to a mint that twice kept paid invoices without issuing ecash', () => {
+    const unpaid = (agoH: number) => ({ ...s('A', 'U', 'failed', 'mint', agoH, 'Invoice paid but mint quote still UNPAID'), preimageOk: true });
+    expect(computeBackoff([unpaid(30)], now).get('U')?.receiveUntil ?? 0).toBeLessThan(now + 24 * HOUR);
+    expect(computeBackoff([unpaid(30), unpaid(28)], now).get('U')!.receiveUntil).toBeGreaterThan(now + 5 * 24 * HOUR);
+    expect(computeBackoff([unpaid(30), unpaid(28), s('B', 'U', 'success', null, 1)], now).get('U')?.receiveUntil ?? 0).toBeLessThan(now);
+  });
+  it('keeps doubling attributed failures past one day', () => {
+    const swaps = Array.from({ length: 7 }, (_, i) => s('A', 'X', 'failed', 'mint_quote', 7 - i));
+    expect(computeBackoff(swaps, now).get('X')!.receiveUntil).toBeGreaterThan(now + 2 * 24 * HOUR);
   });
 });
