@@ -2,6 +2,7 @@ import { nip19 } from 'nostr-tools';
 import { prisma } from './prisma';
 import { RANGES, type RangeKey } from './stats';
 import { loadBackoff } from './backoff';
+import { LATE_ISSUE } from './transfer';
 import { COUNTED_SWAP } from './counted';
 
 const FRANKFURT_SEQUENTIAL_FROM = Date.parse('2026-10-04T07:05:00Z');
@@ -122,8 +123,8 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
     backoff: backoff.map.get(id) ?? null,
     money: await (async () => {
       const [unissued, reserved] = await Promise.all([
-        prisma.swap.aggregate({ where: { destMintId: id, stage: 'mint', status: { not: 'success' }, preimageOk: true }, _sum: { amount: true }, _count: true, _min: { timestamp: true } }),
-        prisma.proof.findMany({ where: { mintId: id, state: 'reserved' }, select: { amount: true, swapId: true } }),
+        prisma.swap.aggregate({ where: { destMintId: id, stage: 'mint', status: { not: 'success' }, preimageOk: true, OR: [{ error: null }, { error: { not: LATE_ISSUE } }] }, _sum: { amount: true }, _count: true, _min: { timestamp: true } }),
+        prisma.proof.findMany({ where: { mintId: id, state: { in: ['reserved', 'stuck'] } }, select: { amount: true, swapId: true, state: true } }),
       ]);
       const old = await prisma.swap.findMany({
         where: { id: { in: [...new Set(reserved.map(p => p.swapId ?? ''))] }, timestamp: { lt: new Date(now - 3_600_000) } },
@@ -135,6 +136,7 @@ export async function getMintExtras(id: string, range: RangeKey, now = Date.now(
         stuck: {
           sat: reserved.filter(p => p.swapId && oldIds.has(p.swapId)).reduce((sum, p) => sum + p.amount, 0),
           since: old.length ? Math.min(...old.map(o => o.timestamp.getTime())) : null,
+          writtenOff: reserved.filter(p => p.state === 'stuck').reduce((sum, p) => sum + p.amount, 0),
         },
       };
     })(),

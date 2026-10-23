@@ -87,7 +87,7 @@ export async function loadBackoff(now = Date.now()) {
   const map = computeBackoff(swaps, now);
   const pairs = computePairBackoff(swaps, now);
   const stuck = new Set(
-    (await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'reserved' } })).map(r => r.mintId)
+    (await prisma.proof.groupBy({ by: ['mintId'], where: { state: { in: ['reserved', 'stuck'] } } })).map(r => r.mintId)
   );
   for (const id of stuck) {
     const b = map.get(id);

@@ -43,7 +43,7 @@ export const unspentBalance = async (mintId: string) =>
 export async function trustState(now = Date.now()) {
   const [mints, balances, payouts] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, aliasOfId: true, addedAt: true } }),
-    prisma.proof.groupBy({ by: ['mintId'], where: { state: { in: ['unspent', 'reserved'] } }, _sum: { amount: true } }),
+    prisma.proof.groupBy({ by: ['mintId'], where: { state: { in: ['unspent', 'reserved', 'stuck'] } }, _sum: { amount: true } }),
     prisma.swap.groupBy({ by: ['sourceMintId'], where: { status: 'success', OR: [{ preimageOk: null }, { preimageOk: true }] } }),
   ]);
   const operatorOf = new Map(mints.map(m => [m.id, m.aliasOfId ?? m.id]));

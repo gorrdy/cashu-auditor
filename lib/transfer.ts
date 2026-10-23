@@ -12,6 +12,7 @@ const MAX_RECOVERY_ATTEMPTS = 48;
 const RECOVERY_INTERVAL_MS = 5 * 60_000;
 const MAX_FEE_RESERVE_SAT = 10;
 const LATE_CLAIM_MS = 30 * 86_400_000;
+export const WRITE_OFF_MS = 30 * 86_400_000;
 export const LATE_ISSUE = 'Ecash issued late, after the swap gave up';
 
 export type MintRef = { id: string; url: string };
@@ -415,12 +416,13 @@ export async function recoverPendingSwaps() {
 
 export async function reconcileAbandonedSwaps() {
   const abandoned = await prisma.swap.findMany({
-    where: { status: 'failed', id: { in: (await prisma.proof.findMany({ where: { state: 'reserved' }, select: { swapId: true }, distinct: ['swapId'] })).map(p => p.swapId!).filter(Boolean) } },
+    where: { status: 'failed', id: { in: (await prisma.proof.findMany({ where: { state: { in: ['reserved', 'stuck'] } }, select: { swapId: true }, distinct: ['swapId'] })).map(p => p.swapId!).filter(Boolean) } },
     include: { sourceMint: { select: { url: true } }, destMint: { select: { url: true } } },
   });
   const results = [];
   for (const { sourceMint, destMint, ...row } of abandoned) {
     let swap: Swap = row;
+    await prisma.proof.updateMany({ where: { swapId: swap.id, state: 'stuck' }, data: { state: 'reserved' } });
     try {
       const resolved = await resolveMelt(await walletFor(sourceMint.url), swap);
       swap = resolved.swap;
@@ -429,13 +431,16 @@ export async function reconcileAbandonedSwaps() {
         continue;
       }
       if (resolved.outcome === 'pending') {
-        results.push({ swapId: swap.id, outcome: 'still pending' });
+        const writeOff = Date.now() - swap.timestamp.getTime() > WRITE_OFF_MS;
+        if (writeOff) await prisma.proof.updateMany({ where: { swapId: swap.id, state: 'reserved' }, data: { state: 'stuck' } });
+        results.push({ swapId: swap.id, outcome: writeOff ? 'written off, still pending' : 'still pending' });
         continue;
       }
       const minted = await completeMint(await walletFor(destMint.url), swap, destMint.url);
       if (minted.status === 'success') await finish(swap, 'success');
       results.push({ swapId: swap.id, outcome: minted.status === 'success' ? 'completed' : `paid, mint ${minted.status}` });
     } catch (error) {
+      if (Date.now() - swap.timestamp.getTime() > WRITE_OFF_MS) await prisma.proof.updateMany({ where: { swapId: swap.id, state: 'reserved' }, data: { state: 'stuck' } });
       results.push({ swapId: swap.id, outcome: `error: ${errorMessage(error)}` });
     }
   }
@@ -444,7 +449,7 @@ export async function reconcileAbandonedSwaps() {
 
 export async function claimLateQuotes() {
   const late = await prisma.swap.findMany({
-    where: { status: 'failed', stage: 'mint', preimageOk: true, mintQuoteId: { not: null }, timestamp: { gte: new Date(Date.now() - LATE_CLAIM_MS) }, NOT: { error: LATE_ISSUE } },
+    where: { status: 'failed', stage: 'mint', preimageOk: true, mintQuoteId: { not: null }, timestamp: { gte: new Date(Date.now() - LATE_CLAIM_MS) }, OR: [{ error: null }, { error: { not: LATE_ISSUE } }] },
     include: { destMint: { select: { url: true } } },
     orderBy: { timestamp: 'asc' },
   });

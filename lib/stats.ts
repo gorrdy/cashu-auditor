@@ -161,7 +161,7 @@ async function computeOverview(now: number) {
   for (const b of balances) {
     const entry = balanceBy.get(b.mintId) ?? { unspent: 0, reserved: 0 };
     if (b.state === 'unspent') entry.unspent += b._sum.amount ?? 0;
-    else entry.reserved += b._sum.amount ?? 0;
+    else if (b.state === 'reserved') entry.reserved += b._sum.amount ?? 0;
     balanceBy.set(b.mintId, entry);
   }
 
