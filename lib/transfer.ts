@@ -11,6 +11,8 @@ const MINT_TIMEOUT_MS = 30_000;
 const MAX_RECOVERY_ATTEMPTS = 48;
 const RECOVERY_INTERVAL_MS = 5 * 60_000;
 const MAX_FEE_RESERVE_SAT = 10;
+const LATE_CLAIM_MS = 30 * 86_400_000;
+export const LATE_ISSUE = 'Ecash issued late, after the swap gave up';
 
 export type MintRef = { id: string; url: string };
 
@@ -144,15 +146,15 @@ async function destConfirmsPayment(destUrl: string, swap: Swap) {
   }
 }
 
-async function completeMint(wallet: Wallet, swap: Swap, destUrl: string): Promise<{ status: 'success' | 'failed' | 'pending'; error?: string }> {
+async function completeMint(wallet: Wallet, swap: Swap, destUrl: string, tries = 5): Promise<{ status: 'success' | 'failed' | 'pending'; error?: string }> {
   let quoteState = 'UNPAID';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < tries; i++) {
     try {
       quoteState = (await withTimeout(wallet.checkMintQuoteBolt11(swap.mintQuoteId!))).state;
     } catch (error) {
       return { status: 'pending', error: `Check mint quote: ${errorMessage(error)}` };
     }
-    if (quoteState !== 'UNPAID') break;
+    if (quoteState !== 'UNPAID' || i === tries - 1) break;
     await sleep(2_000);
   }
   if (quoteState === 'ISSUED') {
@@ -435,6 +437,31 @@ export async function reconcileAbandonedSwaps() {
       results.push({ swapId: swap.id, outcome: minted.status === 'success' ? 'completed' : `paid, mint ${minted.status}` });
     } catch (error) {
       results.push({ swapId: swap.id, outcome: `error: ${errorMessage(error)}` });
+    }
+  }
+  return results;
+}
+
+export async function claimLateQuotes() {
+  const late = await prisma.swap.findMany({
+    where: { status: 'failed', stage: 'mint', preimageOk: true, mintQuoteId: { not: null }, timestamp: { gte: new Date(Date.now() - LATE_CLAIM_MS) }, NOT: { error: LATE_ISSUE } },
+    include: { destMint: { select: { url: true } } },
+    orderBy: { timestamp: 'asc' },
+  });
+  const results = [];
+  for (const { destMint, ...swap } of late) {
+    try {
+      const minted = await completeMint(await walletFor(destMint.url), swap, destMint.url, 1);
+      if (minted.status !== 'success') continue;
+      await prisma.swap.update({ where: { id: swap.id }, data: { error: LATE_ISSUE } });
+      if (swap.kind === 'topup' && swap.operatorId) {
+        const { creditTopupSwap } = await import('./operator/billing');
+        await creditTopupSwap(swap.operatorId, swap.id, swap.amount);
+      }
+      publish('swap', { status: 'failed', amount: swap.amount });
+      results.push({ swapId: swap.id, mint: destMint.url, amount: swap.amount });
+    } catch (error) {
+      results.push({ swapId: swap.id, mint: destMint.url, error: errorMessage(error) });
     }
   }
   return results;

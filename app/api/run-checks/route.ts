@@ -5,7 +5,7 @@ import { withWalletLock } from '@/lib/lock';
 import { mapLimit } from '@/lib/probe';
 import { checkProofStates, swapTest, torCheck } from '@/lib/checks';
 import { publish } from '@/lib/events';
-import { reconcileAbandonedSwaps } from '@/lib/transfer';
+import { claimLateQuotes, reconcileAbandonedSwaps } from '@/lib/transfer';
 import { checkLnNode } from '@/lib/lnnode';
 import { latestStatuses } from '@/lib/eligible';
 
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     if (only === 'ln') return NextResponse.json({ success: true, ln });
   }
   if (only === 'abandoned') {
-    const abandoned = await withWalletLock('reconcile', reconcileAbandonedSwaps);
+    const abandoned = await withWalletLock('reconcile', async () => ({ abandoned: await reconcileAbandonedSwaps(), late: await claimLateQuotes() }));
     return abandoned ? NextResponse.json({ success: true, abandoned }) : NextResponse.json({ error: 'Wallet busy' }, { status: 409 });
   }
 
@@ -33,7 +33,8 @@ export async function GET(request: Request) {
       select: { id: true, url: true, inputFeePpk: true, onionUrl: true },
     });
     const abandoned = await reconcileAbandonedSwaps();
-    const out: unknown[] = [{ abandoned }];
+    const late = await claimLateQuotes();
+    const out: unknown[] = [{ abandoned, late }];
     for (const m of withBalance) {
       const proofState = await checkProofStates(m);
       const swap = await swapTest(m);
