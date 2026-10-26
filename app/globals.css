@@ -351,6 +351,23 @@ table.data td, table.data th { padding-left: 10px; padding-right: 10px; }
 .network-close { background: none; border: 0; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; padding: 0 2px; }
 .network-close:hover { color: var(--ink); }
 @media (max-width: 599px) { .network-search { max-width: none; flex-basis: 100%; } }
+.flow-row { display: grid; grid-template-columns: minmax(140px, 1fr) 1.2fr 1.2fr; gap: 4px 16px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); }
+.flow-head { border-top: 0; padding-top: 0; }
+.flow-name { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--ink); }
+.flow-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.flow-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.flow-bar { display: flex; gap: 2px; height: 10px; min-width: 4px; }
+.flow-bar span { min-width: 2px; }
+.flow-bar span:first-child { border-radius: 4px 0 0 4px; }
+.flow-bar span:last-child { border-radius: 0 4px 4px 0; }
+.flow-bar span:only-child { border-radius: 4px; }
+.flow-cell:hover .flow-bar span { filter: brightness(1.12); }
+.flow-num { flex: none; font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 599px) {
+  .flow-row { grid-template-columns: 1fr 1fr; }
+  .flow-name { grid-column: 1 / -1; }
+  .flow-head span:first-child { display: none; }
+}
 
 @media (max-width: 599px) {
   .nav { gap: 12px; }

@@ -4,10 +4,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { GraphEdge, MintState } from '@/lib/stats';
 import { forceLayout } from '@/lib/graphLayout';
+import { GraphLegend } from './GraphLegend';
 
 type Node = { id: string; label: string; state: MintState };
 type Range = '24h' | '7d' | '30d';
 type Kind = 'all' | 'paid' | 'failed';
+type Mode = 'mints' | 'graph';
+type Side = { paid: number; failed: number; pending: number };
+
+const ROWS = 20;
+const STATE_COLOR: Record<MintState, string> = { ok: 'var(--good)', warn: 'var(--warning)', error: 'var(--critical)', unknown: 'var(--ink-3)' };
 
 const W = 960;
 const H = 640;
@@ -60,6 +66,8 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
   }, [visible, range, edgesByRange]);
   const loading = !edgesByRange[range];
   const [kind, setKind] = useState<Kind>('all');
+  const [mode, setMode] = useState<Mode>('mints');
+  const [allRows, setAllRows] = useState(false);
   const [minSwaps, setMinSwaps] = useState(1);
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<string | null>(null);
@@ -191,6 +199,30 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
     return out;
   }, [shown, pos, volume, view, labelCount, focus, matches, neighbours, cx]);
 
+  const flows = useMemo(() => {
+    const by = new Map<string, { out: Side; in: Side }>();
+    const get = (id: string) => {
+      let f = by.get(id);
+      if (!f) by.set(id, (f = { out: { paid: 0, failed: 0, pending: 0 }, in: { paid: 0, failed: 0, pending: 0 } }));
+      return f;
+    };
+    for (const e of edges) {
+      for (const side of [get(e.source).out, get(e.dest).in]) {
+        side.paid += e.paid;
+        side.failed += e.failed;
+        side.pending += e.pending;
+      }
+    }
+    const q = query.trim().toLowerCase();
+    const total = (x: Side) => x.paid + x.failed + x.pending;
+    const rows = [...by]
+      .map(([id, f]) => ({ id, node: byId.get(id), ...f }))
+      .filter(r => r.node && (!q || r.node.label.toLowerCase().includes(q)))
+      .sort((a, b) => total(b.out) + total(b.in) - total(a.out) - total(a.in));
+    const max = Math.max(1, ...rows.map(r => Math.max(total(r.out), total(r.in))));
+    return { rows, max };
+  }, [edges, byId, query]);
+
   const sel = selected ? byId.get(selected) : null;
   const selStats = useMemo(() => {
     if (!selected) return null;
@@ -209,6 +241,11 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
   return (
     <div className="network" ref={rootRef} style={{ opacity: loading ? 0.6 : 1 }}>
       <div className="network-bar" role="toolbar" aria-label="Network filters">
+        <div className="segmented" role="group" aria-label="View">
+          {([['mints', 'By mint'], ['graph', 'Graph']] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={mode === k} onClick={() => setMode(k)}>{l}</button>
+          ))}
+        </div>
         <div className="segmented" role="group" aria-label="Period">
           {RANGES.map(r => (
             <button key={r.key} type="button" aria-pressed={range === r.key} onClick={() => setRange(r.key)}>{r.label}</button>
@@ -240,6 +277,35 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
         <span className="small muted">{shown.length} mints · {edges.length} links</span>
       </div>
 
+      {mode === 'mints' ? (
+        <div className="flows">
+          <div className="legend" style={{ marginBottom: 12 }}>
+            <span><i style={{ background: 'var(--good)' }} />Paid</span>
+            <span><i style={{ background: 'var(--critical)' }} />Failed</span>
+            <span><i style={{ background: 'var(--warning)' }} />Pending</span>
+            <span>Numbers: paid / not paid · bar length = number of swaps · a failure is not always the mint&apos;s fault, see Errors in the mint table</span>
+          </div>
+          <div className="flow-row flow-head small muted"><span>Mint</span><span>Paid out</span><span>Received</span></div>
+          {flows.rows.slice(0, allRows ? undefined : ROWS).map(r => (
+            <div key={r.id} className="flow-row">
+              <Link href={`/mint/${r.id}`} prefetch={false} className="flow-name">
+                <span className="flow-dot" style={{ background: STATE_COLOR[r.node!.state] }} title={STATE_LABEL[r.node!.state]} aria-label={STATE_LABEL[r.node!.state]} />
+                {r.node!.label}
+              </Link>
+              <FlowBar side={r.out} max={flows.max} tip={`Paid out by ${r.node!.label}`} />
+              <FlowBar side={r.in} max={flows.max} tip={`Received by ${r.node!.label}`} />
+            </div>
+          ))}
+          {!flows.rows.length && <p className="small muted">{loading ? 'Loading…' : 'No swaps match these filters.'}</p>}
+          {flows.rows.length > ROWS && (
+            <button type="button" className="btn secondary" style={{ marginTop: 12 }} onClick={() => setAllRows(v => !v)}>
+              {allRows ? 'Show top 20' : `Show all ${flows.rows.length} mints`}
+            </button>
+          )}
+        </div>
+      ) : (
+      <>
+      <div style={{ marginBottom: 12 }}><GraphLegend /></div>
       <div className="network-stage">
         <svg
           ref={svgRef}
@@ -361,6 +427,8 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
         )}
       </div>
       <p className="small muted" style={{ margin: '6px 0 0' }}>Drag to pan · Ctrl + scroll or pinch to zoom · click a mint to focus · Esc to clear</p>
+      </>
+      )}
 
       <details className="table-view">
         <summary>Show table ({edges.length} links)</summary>
@@ -387,6 +455,22 @@ export default function MintNetwork({ nodes }: { nodes: Node[] }) {
           </table>
         </div>
       </details>
+    </div>
+  );
+}
+
+function FlowBar({ side, max, tip }: { side: Side; max: number; tip: string }) {
+  const total = side.paid + side.failed + side.pending;
+  if (!total) return <span className="small muted">—</span>;
+  const done = side.paid + side.failed;
+  return (
+    <div className="flow-cell" data-tip={`${side.paid} of ${total} paid${done ? ` · ${pct((side.paid / done) * 100)}` : ''}\n${tip}\nPaid ${side.paid} · Failed ${side.failed}${side.pending ? ` · Pending ${side.pending}` : ''}`}>
+      <div className="flow-bar" style={{ width: `${(total / max) * 100}%` }}>
+        {side.paid > 0 && <span style={{ flexGrow: side.paid, background: 'var(--good)' }} />}
+        {side.failed > 0 && <span style={{ flexGrow: side.failed, background: 'var(--critical)' }} />}
+        {side.pending > 0 && <span style={{ flexGrow: side.pending, background: 'var(--warning)' }} />}
+      </div>
+      <span className="flow-num">{side.paid}{side.failed + side.pending ? <span className="muted"> / {side.failed + side.pending}</span> : null}</span>
     </div>
   );
 }

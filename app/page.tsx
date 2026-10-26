@@ -4,7 +4,6 @@ import JsonLd from '@/components/JsonLd';
 import { ORGANIZATION, graph } from '@/lib/seo';
 import { SITE_URL, mintPage } from '@/lib/site';
 import { getOverview, getRecentSwaps, LONG_OFFLINE_DAYS, type MintState } from '@/lib/stats';
-import { GraphLegend } from '@/components/GraphLegend';
 import MintNetwork from '@/components/MintNetworkLazy';
 import StateBadge from '@/components/StateBadge';
 import MintIcon from '@/components/MintIcon';
@@ -139,9 +138,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
 
   const runway = totals.runwayDays;
   const runwayLevel = runway == null ? 'good' : runway < 10 ? 'critical' : runway < 30 ? 'warning' : 'good';
-  const firstActive = swapsPerDay.findIndex(d => d.success + d.failed + d.pending > 0);
   const bars = swapsPerDay
-    .slice(firstActive < 0 ? 0 : Math.max(0, Math.min(firstActive, swapsPerDay.length - 7)))
+    .slice(-14)
     .map(d => ({ label: fmtDayKey(d.day), success: d.success, failed: d.failed, pending: d.pending }));
   const currentHour = Math.floor(now / HOUR_MS);
   const ranked = mints.filter(m => !m.isTest && !m.longOffline).sort((a, b) => Number(b.recommended) - Number(a.recommended) || (b.score ?? -1) - (a.score ?? -1));
@@ -425,7 +423,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
             <p className="small soft" style={{ margin: 0 }}>Last {bars.length} days · a swap melts ecash at one mint and mints it at another</p>
           </div>
         </div>
-        <StatusBars buckets={bars} ariaLabel="Swaps per day over the last 30 days, split into paid, failed and pending" firstLabel={bars[0]?.label ?? ''} lastLabel="Today" />
+        <StatusBars buckets={bars} ariaLabel="Swaps per day over the last 14 days, split into paid, failed and pending" firstLabel={bars[0]?.label ?? ''} lastLabel="Today" />
         <StatusTable buckets={bars} head="Day" />
       </section>
 
@@ -433,9 +431,8 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <div className="card-head">
           <div>
             <h2 className="h2">Swap network</h2>
-            <p className="small soft" style={{ margin: 0 }}>Which mints paid which</p>
+            <p className="small soft" style={{ margin: 0 }}>How each mint did as payer and receiver, or the full graph of which mints paid which</p>
           </div>
-          <GraphLegend />
         </div>
         <MintNetwork nodes={graphNodes} />
       </section>

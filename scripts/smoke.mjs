@@ -65,10 +65,13 @@ for (const path of pages) {
   await page.goto(`${BASE}/`, { waitUntil: 'load' });
   const live = await page.waitForSelector('.live-live', { timeout: 15000 }).then(() => true).catch(() => false);
   check(live, 'live updates connect');
-  await page.waitForSelector('.network-stage');
-  await page.evaluate(() => document.querySelector('.network-stage')?.scrollIntoView());
+  await page.waitForSelector('.network-bar');
+  await page.evaluate(() => document.querySelector('.network-bar')?.scrollIntoView());
   const loaded = await page.waitForFunction(() => /^[1-9]/.test(document.querySelector('.network-bar .muted')?.textContent ?? ''), null, { timeout: 15000 }).then(() => true).catch(() => false);
   check(loaded, 'network loads');
+  check((await page.$$('.flow-row .flow-bar')).length > 0, 'swaps by mint shows bars');
+  await page.click('.network-bar button:has-text("Graph")');
+  await page.waitForSelector('.network-stage');
   const before = await page.getAttribute('.network-graph > g', 'transform');
   await page.click('button[aria-label="Zoom in"]');
   check((await page.getAttribute('.network-graph > g', 'transform')) !== before, 'network zoom');
