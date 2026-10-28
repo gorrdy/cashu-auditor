@@ -20,5 +20,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = (await request.json().catch(() => null)) as { key?: unknown } | null;
   const run = isMintId(id) && typeof body?.key === 'string' ? await runOwner(id, body.key) : null;
   if (!run) return Response.json({ error: 'Not found' }, { status: 404, headers: noStore });
-  return Response.json({ returnTo: run.returnTo, donate: run.donate, token: run.token, status: run.status, error: run.error }, { headers: noStore });
+  return Response.json({ returnTo: run.returnTo, donate: run.donate, token: run.token, extra: run.extra, extraToken: run.extraToken === 'donated' ? null : run.extraToken, status: run.status, error: run.error }, { headers: noStore });
 }

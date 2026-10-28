@@ -10,7 +10,7 @@ import { getOverview } from './stats';
 import { loadBackoff } from './backoff';
 import { withWalletLock } from './lock';
 import { publish } from './events';
-import { errorMessage, recoverSwap, transfer } from './transfer';
+import { errorMessage, recoverSwap, swapMoved, transfer } from './transfer';
 import { DAY, HELD_RUN_STATUSES } from './constants';
 
 export const RUN_MIN = 10_000;
@@ -48,7 +48,7 @@ export async function createRun(input: { amount: number; returnTo?: string; dona
     const quote = await createHomeQuote(home.url, amount);
     const key = randomBytes(18).toString('base64url');
     const run = await prisma.mintRun.create({
-      data: { amount, value: amount, status: 'invoice', donate: input.donate, returnTo, keyHash: hashKey(key), quoteId: quote.quote, request: quote.request, expiresAt: quote.expiresAt },
+      data: { amount, invoiceAmount: amount, value: amount, status: 'invoice', donate: input.donate, returnTo, keyHash: hashKey(key), quoteId: quote.quote, request: quote.request, expiresAt: quote.expiresAt },
     });
     return { id: run.id, key };
   } catch (error) {
@@ -60,12 +60,12 @@ const runStore: QuoteStore = {
   status: async id => ((await prisma.mintRun.findUnique({ where: { id }, select: { status: true } }))?.status === 'invoice' ? 'unpaid' : 'issued'),
   expire: id => prisma.mintRun.updateMany({ where: { id, status: 'invoice' }, data: { status: 'expired' } }),
   issue: async (inv, amount) => {
-    await prisma.mintRun.updateMany({ where: { id: inv.id, status: 'invoice' }, data: { status: 'queued', amount, value: amount } });
+    await prisma.mintRun.updateMany({ where: { id: inv.id, status: 'invoice' }, data: { status: 'queued', amount, value: amount, fundedBy: 'lightning', quoteClosed: true } });
     publish('swap', { status: 'queued', amount });
   },
 };
 
-const asInvoice = (run: MintRun) => ({ id: run.id, quoteId: run.quoteId, amount: run.amount, status: run.status === 'invoice' ? 'unpaid' : 'issued', expiresAt: run.expiresAt });
+const asInvoice = (run: MintRun) => ({ id: run.id, quoteId: run.quoteId, amount: run.invoiceAmount || run.amount, status: run.status === 'invoice' ? 'unpaid' : 'issued', expiresAt: run.expiresAt });
 
 export async function checkRunInvoice(run: MintRun) {
   if (run.status !== 'invoice') return;
@@ -88,7 +88,7 @@ export async function fundRun(id: string, mintUrl: string, token: string | Proof
   const amount = Array.isArray(token) ? token.reduce((s, p) => s + Amount.from(p.amount).toNumber(), 0) : getTokenMetadata(token).amount.toNumber();
   if (amount < RUN_MIN || amount > RUN_MAX) return { error: `A run needs ${RUN_MIN.toLocaleString('en')} to ${RUN_MAX.toLocaleString('en')} sat, this token has ${amount.toLocaleString('en')} sat.` };
   return redeem(mintUrl, token, async (mintId, received) => {
-    const r = await prisma.mintRun.updateMany({ where: { id, status: 'invoice' }, data: { status: 'queued', amount: received, value: received, currentMintId: mintId } });
+    const r = await prisma.mintRun.updateMany({ where: { id, status: 'invoice' }, data: { status: 'queued', amount: received, value: received, currentMintId: mintId, fundedBy: 'ecash' } });
     if (!r.count) {
       await prisma.donation.create({ data: { mintId, amount: received } });
       return `This run was already funded, so ${received} sat were kept as a donation.`;
@@ -129,6 +129,14 @@ export async function activeRunMints() {
   return new Set(runs.map(r => r.currentMintId).filter((id): id is string => !!id));
 }
 
+function shuffle<T>(list: T[]) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
 async function planRoute(value: number, homeId: string) {
   const [{ mints }, backoff] = await Promise.all([getOverview(), loadBackoff()]);
   const methods = new Map((await prisma.mint.findMany({ select: { id: true, methods: true } })).map(m => [m.id, m.methods]));
@@ -142,11 +150,8 @@ async function planRoute(value: number, homeId: string) {
   const ids = mints
     .filter(m => m.recommended && !m.isTest && m.id !== homeId && m.latestStatus === 'online' && fits(m.id) && backoff.canSend(m.id) && backoff.canReceive(m.id))
     .map(m => m.id);
-  for (let i = ids.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-  }
-  return ids;
+  const passed = new Set(mints.filter(m => m.runPassedAt).map(m => m.id));
+  return [...shuffle(ids.filter(id => passed.has(id))), ...shuffle(ids.filter(id => !passed.has(id)))];
 }
 
 async function update(run: MintRun, data: Partial<MintRun>) {
@@ -166,7 +171,7 @@ async function applyLastHop(run: MintRun, homeId: string): Promise<MintRun | nul
   }
   const toHome = swap.destMintId === homeId;
   if (swap.status === 'success') {
-    const value = run.value - swap.fee;
+    const value = Math.min(run.value, swap.amount);
     if (toHome) return update(run, { lastSwapId: null, value, currentMintId: homeId, failStreak: 0, status: 'paying' });
     return update(run, { lastSwapId: null, value, currentMintId: swap.destMintId, failStreak: 0, position: run.position + 1 });
   }
@@ -243,12 +248,50 @@ async function step(run: MintRun, home: { id: string; url: string }): Promise<Mi
   return update(run, { lastSwapId: r.swapId ?? null });
 }
 
+const extraStore: QuoteStore = {
+  status: async id => ((await prisma.mintRun.findUnique({ where: { id }, select: { quoteClosed: true } }))?.quoteClosed ? 'issued' : 'unpaid'),
+  expire: id => prisma.mintRun.update({ where: { id }, data: { quoteClosed: true } }),
+  issue: async (inv, amount) => {
+    await prisma.mintRun.update({ where: { id: inv.id }, data: { quoteClosed: true, extra: amount } });
+  },
+};
+
+async function settleDoublePayments(home: { id: string; url: string }) {
+  const open = await prisma.mintRun.findMany({ where: { fundedBy: 'ecash', quoteClosed: false, createdAt: { gte: new Date(Date.now() - 2 * DAY) } } });
+  for (const run of open) {
+    await settleQuote({ ...asInvoice(run), status: 'unpaid' }, home, true, extraStore).catch(() => null);
+  }
+  for (const run of await prisma.mintRun.findMany({ where: { extra: { gt: 0 }, extraToken: null } })) {
+    try {
+      if (run.donate) {
+        await prisma.donation.create({ data: { mintId: home.id, amount: run.extra } });
+        await prisma.mintRun.update({ where: { id: run.id }, data: { extraToken: 'donated' } });
+      } else {
+        await prisma.mintRun.update({ where: { id: run.id }, data: { extraToken: await refundToken(home, run.extra) } });
+      }
+    } catch (error) {
+      console.error('double payment refund failed:', errorMessage(error));
+    }
+  }
+}
+
+export async function waitForRunHop(deadline = Date.now() + 40_000) {
+  const run = await prisma.mintRun.findFirst({ where: { status: 'running', lastSwapId: { not: null } } });
+  const swap = run?.lastSwapId ? await prisma.swap.findUnique({ where: { id: run.lastSwapId } }) : null;
+  if (!swap || swap.status !== 'pending') return;
+  while (Date.now() + PENDING_POLL_MS < deadline) {
+    if (await swapMoved(swap)) return;
+    await new Promise(r => setTimeout(r, PENDING_POLL_MS));
+  }
+}
+
 export async function advanceRuns(deadline = Date.now() + 45_000) {
   const home = await homeMint();
   if (!home) return null;
   for (const inv of await prisma.mintRun.findMany({ where: { status: 'invoice', createdAt: { gte: new Date(Date.now() - DAY) } } })) {
     await settleQuote(asInvoice(inv), home, true, runStore).catch(() => null);
   }
+  await settleDoublePayments(home);
   let run = await prisma.mintRun.findFirst({ where: { status: { in: ACTIVE_STATUSES } }, orderBy: { createdAt: 'asc' } });
   if (!run) {
     const queued = await prisma.mintRun.findFirst({ where: { status: 'queued' }, orderBy: { createdAt: 'asc' } });
@@ -259,15 +302,7 @@ export async function advanceRuns(deadline = Date.now() + 45_000) {
   const log: string[] = [];
   while (run && Date.now() < deadline) {
     try {
-      const next = await step(run, home);
-      if (next) {
-        run = next;
-        continue;
-      }
-      const waiting: MintRun | null = await prisma.mintRun.findUnique({ where: { id: run.id } });
-      if (waiting?.status !== 'running' || !waiting.lastSwapId || Date.now() + PENDING_POLL_MS > deadline) break;
-      await new Promise(r => setTimeout(r, PENDING_POLL_MS));
-      run = waiting;
+      run = await step(run, home);
     } catch (error) {
       log.push(errorMessage(error));
       break;
@@ -278,7 +313,7 @@ export async function advanceRuns(deadline = Date.now() + 45_000) {
 }
 
 export async function getRun(id: string) {
-  const run = await prisma.mintRun.findUnique({ where: { id }, omit: { keyHash: true, token: true, returnTo: true } });
+  const run = await prisma.mintRun.findUnique({ where: { id }, omit: { keyHash: true, token: true, returnTo: true, extraToken: true } });
   if (!run) return null;
   const [swaps, names] = await Promise.all([
     prisma.swap.findMany({

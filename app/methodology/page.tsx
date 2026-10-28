@@ -116,10 +116,15 @@ export default function Methodology() {
         A <Link href="/run">mint run</Link> is funded by a visitor with 10,000 to 100,000 sat, paid to the home mint over Lightning or as Cashu ecash from any mint, in which case the run starts at that mint. The auditor then
         sends the whole amount, minus fees, over Lightning through every recommended mint whose limits allow it, in random order,
         one mint at a time, and finally back to the home mint. A mint that cannot quote, receive or pay the amount is skipped;
-        after three failures in a row the run returns home. The visitor pays only the fees actually charged; what is left goes to
+        after three failures in a row the run returns home. Each hop sends what the run holds minus the Lightning fee reserve, so the run owns exactly what arrives at each mint and the audit never adds its own sats; unused reserve that a mint returns stays with the audit. What is left goes to
         their Lightning address, or to a Cashu token on their private run page if that payment fails, or to the audit if they
         chose to donate. Run hops are listed on each mint&apos;s page but do not count toward scores, recommendations or the
         daily fee budget, and the run&apos;s sats are not counted as audit balance.
+      </p>
+      <p>
+        A mint that received and paid out a run in the last 30 days without failing one is marked <em>Passed mint run</em>.
+        These mints go first in new runs and mints not yet tested this way go last, so a stall hits as late in the route as
+        possible.
       </p>
       <p>
         A mint that fails a run is marked <em>Failed mint run</em> and is not recommended for 30 days. That covers a mint that

@@ -29,7 +29,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
   if (!data) notFound();
   const { now, run, swaps, route } = data;
   const hops = [...swaps].reverse();
-  const fees = swaps.reduce((s, x) => s + (x.status === 'success' ? x.fee : 0), 0);
+  const fees = run.status === 'invoice' || run.status === 'expired' ? 0 : run.amount - (run.status === 'done' && run.returned ? run.returned : run.value);
   const passed = new Set(swaps.filter(s => s.status === 'success').flatMap(s => [s.sourceMintId, s.destMintId]));
   const failedAt = new Map<string, string>();
   for (const s of swaps) {
@@ -59,7 +59,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
           <div className="tiles run-tiles">
             <div className="tile"><div className="tile-label">Paid in</div><div className="tile-value">{run.amount.toLocaleString('en')}<small>sat</small></div></div>
             <div className="tile"><div className="tile-label">{run.status === 'done' && run.returned ? 'Paid back' : 'Left'}</div><div className="tile-value">{(run.status === 'done' && run.returned ? run.returned : run.value).toLocaleString('en')}<small>sat</small></div></div>
-            <div className="tile"><div className="tile-label">Fees</div><div className="tile-value">{fees.toLocaleString('en')}<small>sat</small></div><div className="tile-sub">{run.amount ? ((fees / run.amount) * 100).toFixed(2) : 0} % of the amount</div></div>
+            <div className="tile"><div className="tile-label">Fees and reserves</div><div className="tile-value">{fees.toLocaleString('en')}<small>sat</small></div><div className="tile-sub">{run.amount ? ((fees / run.amount) * 100).toFixed(2) : 0} % of the amount</div></div>
             <div className="tile"><div className="tile-label">Mints passed</div><div className="tile-value">{route.filter(m => passed.has(m.id)).length}<small>/ {route.length}</small></div><div className="tile-sub">{elapsed != null ? fmtDuration(elapsed) : 'Not started'}</div></div>
           </div>
         )}

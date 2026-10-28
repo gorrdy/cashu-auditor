@@ -1,6 +1,6 @@
 import { prisma } from './prisma';
 import { BLAME_SELECT, makeBlame, unhonoredMints } from './blame';
-import { RUN_FAIL_DAYS, runFailures } from './runfail';
+import { RUN_FAIL_DAYS, runFailures, runPassed } from './runfail';
 import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
@@ -153,6 +153,7 @@ async function computeOverview(now: number) {
     }),
   ]);
   const runFail = runFailures(runHops, now);
+  const runPass = runPassed(runHops, now);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
   const month = new Map<string, { ok: number; blamed: number }>();
@@ -302,6 +303,7 @@ async function computeOverview(now: number) {
     .map(r => ({
       ...r,
       runFail: runFail.get(r.id) ?? null,
+      runPassedAt: runPass.get(r.id) ?? null,
       recommended: isRecommended(r, now) && !runFail.has(r.id),
       versionStatus: versionStatus(r.version, newest),
       aliases: aliasRows

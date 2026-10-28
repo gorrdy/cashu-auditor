@@ -96,7 +96,7 @@ export default async function MintPage({ params, searchParams }: Props) {
         <div style={{ display: 'flex', gap: 16, minWidth: 0 }}>
           <MintIcon id={mint.id} hash={mint.iconHash} label={mint.name ?? mint.url} size={56} />
           <div style={{ minWidth: 0 }}>
-            <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}{row?.isNew && <span className="new-chip">New</span>}{row?.recommended && <Link href="/methodology#recommended" className="rec-chip">Recommended</Link>}{row?.runFail && <Link href="/methodology#mint-run" className="runfail-chip">Failed mint run</Link>}</p>
+            <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}{row?.isNew && <span className="new-chip">New</span>}{row?.recommended && <Link href="/methodology#recommended" className="rec-chip">Recommended</Link>}{row?.runFail && <Link href="/methodology#mint-run" className="runfail-chip">Failed mint run</Link>}{row?.runPassedAt && <Link href="/methodology#mint-run" className="runpass-chip">Passed mint run</Link>}</p>
             <h1 className="h1" style={{ overflowWrap: 'anywhere' }}>{label}</h1>
             <p className="mono soft" style={{ margin: '6px 0 0', overflowWrap: 'anywhere' }}>{mint.url}</p>
             {x.aliases.length > 0 && (

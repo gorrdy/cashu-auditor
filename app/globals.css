@@ -791,6 +791,8 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .rec-chip { display: inline-block; margin: 0 0 0 6px; padding: 0 7px; border-radius: 999px; font-family: var(--font-sans); font-size: 10px; line-height: 16px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 2px; color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
 .runfail-chip { display: inline-block; margin: 0 0 0 6px; padding: 0 7px; border-radius: 999px; font-family: var(--font-sans); font-size: 10px; line-height: 16px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 2px; color: var(--ink); background: color-mix(in srgb, var(--serious) 30%, transparent); }
 .mc-tags .runfail-chip { margin: 0; }
+.runpass-chip { display: inline-block; margin: 0 0 0 6px; padding: 0 7px; border-radius: 999px; font-family: var(--font-sans); font-size: 10px; line-height: 16px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; vertical-align: 2px; color: var(--accent-ink); background: var(--accent-wash); }
+.mc-tags .runpass-chip { margin: 0; }
 .nav .nav-account { padding: 6px 14px; border-radius: 999px; background: var(--accent-wash); color: var(--accent-ink); font-weight: 600; }
 .nav .nav-account:hover { text-decoration: none; background: var(--accent); color: var(--on-accent); }
 .menu-sep { height: 1px; margin: 6px 8px; background: var(--line); }

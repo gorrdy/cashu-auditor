@@ -45,3 +45,16 @@ export function runFailures(hops: RunHop[], now = Date.now()) {
   }
   return out;
 }
+
+export function runPassed(hops: RunHop[], now = Date.now()) {
+  const recent = hops.filter(h => h.status === 'success' && now - h.timestamp.getTime() < RUN_FAIL_DAYS * DAY);
+  const paid = new Map<string, number>();
+  const got = new Map<string, number>();
+  for (const h of recent) {
+    const at = h.timestamp.getTime();
+    paid.set(h.sourceMintId, Math.max(paid.get(h.sourceMintId) ?? 0, at));
+    got.set(h.destMintId, Math.max(got.get(h.destMintId) ?? 0, at));
+  }
+  const failed = runFailures(hops, now);
+  return new Map([...paid].filter(([id]) => got.has(id) && !failed.has(id)).map(([id, at]) => [id, Math.max(at, got.get(id)!)]));
+}

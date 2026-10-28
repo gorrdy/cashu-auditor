@@ -276,6 +276,7 @@ export async function transfer(opts: {
     }
 
     quoteStarted = Date.now();
+    let grown = false;
     for (let attempt = 0; attempt < 4; attempt++) {
       if (target < 1) {
         stage = 'balance';
@@ -295,6 +296,12 @@ export async function transfer(opts: {
       const base = num(meltQuote.amount) + num(meltQuote.fee_reserve);
       send = cap >= base ? sourceWallet.selectProofsToSend(proofs, base, true).send : [];
       const needed = base + (send.length ? num(sourceWallet.getFeesForProofs(send)) : 0);
+      if (opts.budget && !grown && needed < cap && attempt < 3 && target + cap - needed <= limits.max) {
+        grown = true;
+        target += cap - needed;
+        send = [];
+        continue;
+      }
       if (send.length && sum(send) >= needed && needed <= cap) break;
       if (opts.amount !== undefined || attempt === 3) {
         stage = 'balance';
@@ -392,6 +399,21 @@ export async function recoverPendingSwaps() {
     results.push(await recoverSwap(swap, { giveUpMelt: giveUp, giveUpMint: giveUp }));
   }
   return results;
+}
+
+export async function swapMoved(swap: Swap) {
+  const mints = await prisma.mint.findMany({ where: { id: { in: [swap.sourceMintId, swap.destMintId] } }, select: { id: true, url: true } });
+  const url = (id: string) => mints.find(m => m.id === id)!.url;
+  try {
+    if (swap.stage === 'melt') {
+      const melt = await withTimeout(createWallet(url(swap.sourceMintId)).checkMeltQuoteBolt11(swap.meltQuoteId!));
+      if (melt.state !== 'PENDING') return true;
+    }
+    const quote = await withTimeout(createWallet(url(swap.destMintId)).checkMintQuoteBolt11(swap.mintQuoteId!));
+    return quote.state !== 'UNPAID';
+  } catch {
+    return false;
+  }
 }
 
 export async function recoverSwap(row: Swap, opts: { giveUpMelt: boolean; giveUpMint: boolean; tries?: number }) {

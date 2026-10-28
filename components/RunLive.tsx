@@ -6,7 +6,7 @@ import { BoltIcon, CoinIcon } from './icons';
 import { fundRunToken } from '@/app/actions';
 import CopyButton from './CopyButton';
 
-type Owner = { key: string; returnTo: string | null; donate: boolean; token: string | null; status: string; error: string | null };
+type Owner = { key: string; returnTo: string | null; donate: boolean; token: string | null; extra: number; extraToken: string | null; status: string; error: string | null };
 
 const ACTIVE = ['invoice', 'queued', 'running', 'paying'];
 
@@ -109,6 +109,13 @@ export function RunOwner({ id }: { id: string }) {
         <dt>At the end</dt><dd>{owner.donate ? 'Donate to the audit' : <>Pay back to <span className="mono">{owner.returnTo}</span></>}</dd>
         <dt>Private link</dt><dd><CopyButton text={link} label="Copy private link" className="linkish" /></dd>
       </dl>
+      {owner.extraToken && (
+        <>
+          <p className="small" style={{ marginTop: 12 }}>You paid the run twice: with ecash and with the Lightning invoice. The second payment of {owner.extra.toLocaleString('en')} sat is yours to claim as a Cashu token:</p>
+          <p className="donate-code mono" style={{ overflowWrap: 'anywhere' }}>{owner.extraToken.slice(0, 48)}…</p>
+          <CopyButton text={owner.extraToken} label="Copy token" className="btn" />
+        </>
+      )}
       {owner.token && (
         <>
           <p className="small" style={{ marginTop: 12 }}>The Lightning payment back did not go through. Claim the rest as a Cashu token in any wallet:</p>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runFailures, type RunHop } from '@/lib/runfail';
+import { runFailures, runPassed, type RunHop } from '@/lib/runfail';
 
 const now = Date.now();
 const hop = (source: string, dest: string, status: string, stage: string | null, agoMin: number, duration = 3000): RunHop => ({
@@ -24,5 +24,9 @@ describe('runFailures', () => {
   });
   it('forgets failures after 30 days', () => {
     expect(runFailures([hop('A', 'Q', 'failed', 'mint_quote', 31 * 24 * 60)], now).size).toBe(0);
+  });
+  it('marks a mint as passed only when it both received and paid out a run', () => {
+    const p = runPassed([hop('H', 'A', 'success', null, 30), hop('A', 'B', 'success', null, 29), hop('B', 'N', 'pending', 'melt', 20)], now);
+    expect([...p.keys()]).toEqual(['A']);
   });
 });

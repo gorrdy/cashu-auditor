@@ -6,7 +6,7 @@ import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
-import { activeRunMints, advanceRuns } from '@/lib/mintrun';
+import { activeRunMints, advanceRuns, waitForRunHop } from '@/lib/mintrun';
 import { latestStatuses, trustState } from '@/lib/eligible';
 import { startOfDay } from '@/lib/time';
 import { dailyCoverage, lastTried, pairKey, pairValue } from '@/lib/pairSchedule';
@@ -36,6 +36,7 @@ function bolt11Min(methods: string | null, op: 'mint' | 'melt') {
 export async function GET(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  await waitForRunHop().catch(() => null);
   const result = await withWalletLock('run-swap', async () => {
     const recovered = await recoverPendingSwaps();
     const run = await advanceRuns().catch(error => ({ error: String(error) }));
