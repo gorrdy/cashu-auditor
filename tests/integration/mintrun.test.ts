@@ -88,6 +88,20 @@ describe('mint run', () => {
     expect((await prisma.mintRun.findUniqueOrThrow({ where: { id: run.id } })).status).toBe('done');
   });
 
+  it('runs a queued run while another one waits on a stuck payment', async () => {
+    const stuckSwap = await prisma.swap.create({ data: { kind: 'run', sourceMintId: ids.a, destMintId: ids.c, amount: 9_000, status: 'pending', stage: 'melt' } });
+    const stuck = await prisma.mintRun.create({
+      data: { amount: 10_000, value: 9_500, status: 'running', currentMintId: ids.a, lastSwapId: stuckSwap.id, route: JSON.stringify([ids.c]), donate: true, keyHash: 's', quoteId: 'run-q4', request: 'lnbc1', expiresAt: new Date() },
+    });
+    const next = await prisma.mintRun.create({
+      data: { amount: 10_000, value: 10_000, status: 'queued', donate: true, keyHash: 'n', quoteId: 'run-q5', request: 'lnbc1', expiresAt: new Date() },
+    });
+    await mintrun.advanceRuns();
+    expect((await prisma.mintRun.findUniqueOrThrow({ where: { id: next.id } })).status).toBe('done');
+    expect((await prisma.mintRun.findUniqueOrThrow({ where: { id: stuck.id } })).status).toBe('running');
+    await prisma.mintRun.update({ where: { id: stuck.id }, data: { status: 'stuck' } });
+  });
+
   it('keeps the run out of the audit balance while it holds sats', async () => {
     const { totalBalance } = await import('@/lib/budget');
     const before = await totalBalance();

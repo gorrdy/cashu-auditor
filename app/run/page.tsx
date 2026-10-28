@@ -27,7 +27,7 @@ export default async function RunPage() {
             Lightning address or to the audit.
           </p>
           <ul className="soft small run-points">
-            <li>One run at a time, one hop roughly every few seconds. A run of 20 mints usually takes 10 to 30 minutes.</li>
+            <li>Up to three runs at a time, taking turns, one hop every few seconds. A run of 20 mints usually takes 10 to 30 minutes, and a stuck payment in one run does not hold up the others.</li>
             <li>A mint that cannot take or pay the amount is skipped and the failure is shown. After three failures in a row the run goes straight home.</li>
             <li>Each hop costs its Lightning fee reserve, usually under 1 %. The run carries on with exactly what arrived.</li>
             <li>Every hop is public on the run page. Your Lightning address is not.</li>

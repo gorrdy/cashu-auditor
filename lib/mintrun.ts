@@ -15,7 +15,8 @@ import { DAY, HELD_RUN_STATUSES } from './constants';
 
 export const RUN_MIN = 10_000;
 export const RUN_MAX = 100_000;
-const MAX_OPEN = 3;
+const MAX_OPEN = 5;
+const MAX_ACTIVE = 3;
 const FAILS_BEFORE_HOME = 3;
 const GIVE_UP_FAILS = FAILS_BEFORE_HOME + 96;
 const RETRY_MS = 15 * 60_000;
@@ -276,12 +277,27 @@ async function settleDoublePayments(home: { id: string; url: string }) {
 }
 
 export async function waitForRunHop(deadline = Date.now() + 40_000) {
-  const run = await prisma.mintRun.findFirst({ where: { status: 'running', lastSwapId: { not: null } } });
-  const swap = run?.lastSwapId ? await prisma.swap.findUnique({ where: { id: run.lastSwapId } }) : null;
-  if (!swap || swap.status !== 'pending') return;
+  const active = await prisma.mintRun.findMany({ where: { status: { in: ACTIVE_STATUSES } } });
+  if (!active.length) return;
+  if (active.length < MAX_ACTIVE && (await prisma.mintRun.count({ where: { status: 'queued' } }))) return;
+  const pending = [];
+  for (const run of active) {
+    const swap = run.status === 'running' && run.lastSwapId ? await prisma.swap.findUnique({ where: { id: run.lastSwapId } }) : null;
+    if (swap?.status !== 'pending') return;
+    pending.push(swap);
+  }
   while (Date.now() + PENDING_POLL_MS < deadline) {
-    if (await swapMoved(swap)) return;
+    for (const swap of pending) if (await swapMoved(swap)) return;
     await new Promise(r => setTimeout(r, PENDING_POLL_MS));
+  }
+}
+
+async function startQueued(home: { id: string; url: string }) {
+  const running = await prisma.mintRun.count({ where: { status: { in: ACTIVE_STATUSES } } });
+  const queued = await prisma.mintRun.findMany({ where: { status: 'queued' }, orderBy: { createdAt: 'asc' }, take: Math.max(0, MAX_ACTIVE - running) });
+  for (const run of queued) {
+    const start = run.currentMintId ?? home.id;
+    await update(run, { status: 'running', route: JSON.stringify((await planRoute(run.value, home.id)).filter(m => m !== start)), currentMintId: start, startedAt: new Date() });
   }
 }
 
@@ -292,24 +308,24 @@ export async function advanceRuns(deadline = Date.now() + 45_000) {
     await settleQuote(asInvoice(inv), home, true, runStore).catch(() => null);
   }
   await settleDoublePayments(home);
-  let run = await prisma.mintRun.findFirst({ where: { status: { in: ACTIVE_STATUSES } }, orderBy: { createdAt: 'asc' } });
-  if (!run) {
-    const queued = await prisma.mintRun.findFirst({ where: { status: 'queued' }, orderBy: { createdAt: 'asc' } });
-    if (!queued) return null;
-    const start = queued.currentMintId ?? home.id;
-    run = await update(queued, { status: 'running', route: JSON.stringify((await planRoute(queued.value, home.id)).filter(m => m !== start)), currentMintId: start, startedAt: new Date() });
-  }
-  const log: string[] = [];
-  while (run && Date.now() < deadline) {
-    try {
-      run = await step(run, home);
-    } catch (error) {
-      log.push(errorMessage(error));
-      break;
+  await startQueued(home);
+  let runs = await prisma.mintRun.findMany({ where: { status: { in: ACTIVE_STATUSES } }, orderBy: { createdAt: 'asc' } });
+  const errors: string[] = [];
+  while (runs.length && Date.now() < deadline) {
+    const next: MintRun[] = [];
+    for (const run of runs) {
+      if (Date.now() >= deadline) break;
+      try {
+        const moved = await step(run, home);
+        if (moved) next.push(moved);
+      } catch (error) {
+        errors.push(errorMessage(error));
+      }
     }
+    runs = next;
   }
-  const now = await prisma.mintRun.findFirst({ where: { status: { in: [...ACTIVE_STATUSES, 'queued'] } }, orderBy: { createdAt: 'asc' }, select: { id: true, status: true, position: true, value: true } });
-  return { run: now, errors: log };
+  const now = await prisma.mintRun.findMany({ where: { status: { in: [...ACTIVE_STATUSES, 'queued'] } }, orderBy: { createdAt: 'asc' }, select: { id: true, status: true, position: true, value: true } });
+  return { runs: now, errors };
 }
 
 export async function getRun(id: string) {
