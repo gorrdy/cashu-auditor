@@ -7,7 +7,7 @@ import { qrSvg } from '@/lib/donate';
 import SwapTable from '@/components/SwapTable';
 import StateBadge from '@/components/StateBadge';
 import { RunInvoice, RunOwner, RunRefresh } from '@/components/RunLive';
-import { fmtDuration, fmtSat, mintLabel } from '@/components/format';
+import { fmtDuration, fmtMs, fmtSat, mintLabel } from '@/components/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +29,14 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
   if (!data) notFound();
   const { now, run, swaps, route } = data;
   const hops = [...swaps].reverse();
+  const feeMap = new Map<string, { id: string; name: string | null; url: string; fee: number; sent: number }>();
+  for (const h of swaps.filter(x => x.status === 'success')) {
+    const e = feeMap.get(h.sourceMintId) ?? { ...h.sourceMint, fee: 0, sent: 0 };
+    e.fee += h.fee;
+    e.sent += h.amount + h.fee;
+    feeMap.set(h.sourceMintId, e);
+  }
+  const byMint = [...feeMap.values()].sort((a, b) => b.fee - a.fee);
   const fees = run.status === 'invoice' || run.status === 'expired' ? 0 : run.amount - (run.status === 'done' && run.returned ? run.returned : run.value);
   const passed = new Set(swaps.filter(s => s.status === 'success').flatMap(s => [s.sourceMintId, s.destMintId]));
   const failedAt = new Map<string, string>();
@@ -85,8 +93,54 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
       )}
 
       <section className="section">
-        <div className="section-head"><h2 className="h2">Hops</h2></div>
-        <SwapTable swaps={hops} emptyText={run.status === 'invoice' ? 'The run starts once the invoice is paid.' : 'Waiting for the first hop.'} />
+        <div className="section-head">
+          <h2 className="h2">Hops</h2>
+          <span className="small soft">Reserve is what the paying mint locks for Lightning fees, fee is what it actually kept.</span>
+        </div>
+        {hops.length === 0 ? (
+          <SwapTable swaps={hops} emptyText={run.status === 'invoice' ? 'The run starts once the invoice is paid.' : 'Waiting for the first hop.'} />
+        ) : (
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Result</th><th>From</th><th>To</th><th className="r">Arrived</th><th className="r c-sm">Reserve</th><th className="r">Fee</th><th className="r c-md">Unused reserve</th><th className="r c-lg">Time</th><th className="c-lg">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hops.map(h => {
+                  const ok = h.status === 'success';
+                  return (
+                    <tr key={h.id}>
+                      <td><StateBadge kind={h.status as 'success' | 'failed' | 'pending'} title={h.error ?? undefined} /></td>
+                      <td className="cell-wrap"><Link href={`/mint/${h.sourceMint.id}`} prefetch={false}>{mintLabel(h.sourceMint)}</Link></td>
+                      <td className="cell-wrap"><Link href={`/mint/${h.destMint.id}`} prefetch={false}>{mintLabel(h.destMint)}</Link></td>
+                      <td className="r nowrap">{ok ? fmtSat(h.amount) : '—'}</td>
+                      <td className="r nowrap c-sm">{h.feeReserve != null ? fmtSat(h.feeReserve) : '—'}</td>
+                      <td className="r nowrap">{ok ? fmtSat(h.fee) : '—'}</td>
+                      <td className="r nowrap c-md">{ok && h.feeReserve != null ? fmtSat(Math.max(0, h.feeReserve - h.fee)) : '—'}</td>
+                      <td className="r nowrap c-lg">{h.status === 'pending' ? '—' : fmtMs(h.duration)}</td>
+                      <td className="small soft cell-wrap c-lg">{ok ? '' : `${h.stage ?? ''}${h.error ? `: ${h.error}` : ''}`}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {byMint.length > 0 && (
+          <div className="card" style={{ marginTop: 16 }}>
+            <div className="card-head"><h2 className="h2">Fees by mint</h2><span className="small soft">What each paying mint kept from the run</span></div>
+            <ol className="run-fees">
+              {byMint.map(m => (
+                <li key={m.id}>
+                  <Link href={`/mint/${m.id}`}>{mintLabel(m)}</Link>
+                  <span className="nowrap">{fmtSat(m.fee)} <span className="muted">· {((m.fee / m.sent) * 100).toFixed(2)} %</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </section>
     </>
   );

@@ -877,6 +877,10 @@ table.data.mints-table .col-strip .strip.compact > span { flex: 1 1 0; }
 .run-route li { padding: 6px 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
 .run-route li:first-child { border-top: 0; }
 .run-route .run-error { flex-basis: 100%; }
+.run-fees { margin: 0; padding-left: 28px; display: grid; gap: 2px; font-size: 14px; }
+.run-fees li { padding: 5px 0; border-top: 1px solid var(--line); }
+.run-fees li:first-child { border-top: 0; }
+.run-fees li > span { float: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 899px) {
   .run-hero, .run-top { grid-template-columns: minmax(0, 1fr); }
 }
