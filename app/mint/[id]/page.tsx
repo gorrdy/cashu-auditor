@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const row = (await getOverview()).mints.find(m => m.id === id);
   const facts = row
     ? [
-        row.recommended ? 'Recommended' : null,
+        row.recommended ? 'Recommended' : row.runFail ? 'failed a mint run' : null,
         row.score != null ? `score ${row.score}/100` : null,
         row.uptime30d != null ? `uptime 30 d ${row.uptime30d.toFixed(2)} %` : null,
         `${row.melts} payouts, ${row.mints} receipts, ${row.errors} failures in 30 d`,
@@ -96,7 +96,7 @@ export default async function MintPage({ params, searchParams }: Props) {
         <div style={{ display: 'flex', gap: 16, minWidth: 0 }}>
           <MintIcon id={mint.id} hash={mint.iconHash} label={mint.name ?? mint.url} size={56} />
           <div style={{ minWidth: 0 }}>
-            <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}{row?.isNew && <span className="new-chip">New</span>}{row?.recommended && <Link href="/methodology#recommended" className="rec-chip">Recommended</Link>}</p>
+            <p className="eyebrow">{mint.isTest ? 'Test mint' : 'Mint'}{row?.isNew && <span className="new-chip">New</span>}{row?.recommended && <Link href="/methodology#recommended" className="rec-chip">Recommended</Link>}{row?.runFail && <Link href="/methodology#mint-run" className="runfail-chip">Failed mint run</Link>}</p>
             <h1 className="h1" style={{ overflowWrap: 'anywhere' }}>{label}</h1>
             <p className="mono soft" style={{ margin: '6px 0 0', overflowWrap: 'anywhere' }}>{mint.url}</p>
             {x.aliases.length > 0 && (
@@ -117,6 +117,12 @@ export default async function MintPage({ params, searchParams }: Props) {
         </div>
       </section>
 
+      {row?.runFail && (
+        <p className="small" style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <StateBadge kind="warn" label="Failed a mint run" />
+          {row.runFail.reason} on {fmtDate(row.runFail.at)}. Not recommended until {fmtDate(row.runFail.at + 30 * DAY)}.
+        </p>
+      )}
       <MoneyAlert money={x.money} />
       {mint.description && <p className="soft" style={{ maxWidth: 720, marginTop: 16 }}>{mint.description}</p>}
       {mint.isTest && (

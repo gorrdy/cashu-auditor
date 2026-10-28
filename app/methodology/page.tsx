@@ -121,6 +121,13 @@ export default function Methodology() {
         chose to donate. Run hops are listed on each mint&apos;s page but do not count toward scores, recommendations or the
         daily fee budget, and the run&apos;s sats are not counted as audit balance.
       </p>
+      <p>
+        A mint that fails a run is marked <em>Failed mint run</em> and is not recommended for 30 days. That covers a mint that
+        cannot create an invoice for the amount, is paid but does not issue the ecash, cannot quote or make the payout, or takes
+        part in a Lightning payment that stays pending for more than 2 minutes. When a Lightning payment between two mints fails
+        or stalls, it is put on the receiving mint, unless the paying mint has never paid out a run and the receiving mint has
+        received one.
+      </p>
 
       <h2 id="api">Open data</h2>
       <p>Everything on this site is available without a key. Responses are cached for 60 seconds.</p>

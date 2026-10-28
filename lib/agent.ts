@@ -16,6 +16,7 @@ export function mintSummary(m: Row) {
     state: m.state,
     reasons: m.reasons,
     recommended: m.recommended,
+    failedMintRun: m.runFail ? { at: new Date(m.runFail.at).toISOString(), reason: m.runFail.reason } : null,
     score: m.score,
     uptimePct: { h24: round(m.uptime24h), d7: round(m.uptime7d), d30: round(m.uptime30d) },
     latencyMs24h: m.avgLatency24h,

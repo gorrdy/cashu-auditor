@@ -44,6 +44,10 @@ const SORT_FIRST: Record<SortKey, 'asc' | 'desc'> = { state: 'asc', name: 'asc',
 
 type Row = Awaited<ReturnType<typeof getOverview>>['mints'][number];
 
+function RunFailChip({ fail }: { fail: { at: number; reason: string } }) {
+  return <span className="runfail-chip" title={`Failed a mint run on ${fmtDate(fail.at)}: ${fail.reason}. Not recommended for 30 days.`}>Failed mint run</span>;
+}
+
 function RecommendedChip() {
   return <span className="rec-chip" title="Recommended: no attributed failure, payouts and receipts working and at least 99 % uptime over the last 7 days">Recommended</span>;
 }
@@ -300,9 +304,10 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                   </div>
                   <span className="mc-state"><StateBadge kind={m.state} title={m.reasons.join(' · ')} /></span>
                 </div>
-                {(m.recommended || m.versionStatus?.outdated || m.isTest || m.aliases.length > 0) && (
+                {(m.recommended || m.runFail || m.versionStatus?.outdated || m.isTest || m.aliases.length > 0) && (
                   <div className="mc-tags">
                     {m.recommended && <RecommendedChip />}
+                    {m.runFail && <RunFailChip fail={m.runFail} />}
                     {m.versionStatus?.outdated && <span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span>}
                     {m.isTest && <span className="mc-tag">test mint</span>}
                     {m.aliases.length > 0 && <span className="mc-tag" title={m.aliases.map(a => a.url).join('\n')}>also {m.aliases.map(a => hostOf(a.url)).join(', ')}</span>}
@@ -351,7 +356,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <div className="mint-cell">
                       <MintIcon id={m.id} hash={m.iconHash} label={mintLabel(m)} />
                       <div style={{ minWidth: 0 }}>
-                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{m.isNew && <span className="new-chip">New</span>}{mintLabel(m)}{m.recommended && <RecommendedChip />}</Link>
+                        <Link className="rowlink" href={`/mint/${m.id}`} title={mintLabel(m)} prefetch={false}>{m.isNew && <span className="new-chip">New</span>}{mintLabel(m)}{m.recommended && <RecommendedChip />}{m.runFail && <RunFailChip fail={m.runFail} />}</Link>
                         {m.name && <div className="url" title={m.url}>{hostOf(m.url)}</div>}
                         {m.versionStatus?.outdated && <div><span className="outdated" title={`${m.version} · newest seen in the audit: ${m.versionStatus.newest}`}>outdated software</span></div>}
                         {m.isTest && <div className="url" title="Test mint: may issue unbacked ecash. Checked, but not used as a swap destination.">test mint</div>}

@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { BLAME_SELECT, makeBlame, unhonoredMints } from './blame';
+import { RUN_FAIL_DAYS, runFailures } from './runfail';
 import { computeScore } from './score';
 import { COUNTED_SWAP } from './counted';
 import { bus } from './events';
@@ -126,7 +127,7 @@ export function getOverview(now?: number) {
 }
 
 async function computeOverview(now: number) {
-  const [mints, latest, uptime, strips, balances, donations, allSwaps, reviews, history, swapFees7d, otherFees7d, runHeld] = await Promise.all([
+  const [mints, latest, uptime, strips, balances, donations, allSwaps, reviews, history, swapFees7d, otherFees7d, runHeld, runHops] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true, addedAt: true } }),
     latestAudits(now),
     uptimeWindows(now),
@@ -146,7 +147,12 @@ async function computeOverview(now: number) {
     prisma.swap.aggregate({ where: { kind: 'swap', status: 'success', timestamp: { gte: new Date(now - 7 * DAY) } }, _avg: { fee: true } }),
     prisma.swap.aggregate({ where: { kind: { notIn: ['swap', 'run'] }, timestamp: { gte: new Date(now - 7 * DAY) } }, _sum: { fee: true } }),
     prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }),
+    prisma.swap.findMany({
+      where: { kind: 'run', timestamp: { gte: new Date(now - RUN_FAIL_DAYS * DAY) } },
+      select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true, duration: true },
+    }),
   ]);
+  const runFail = runFailures(runHops, now);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
   const month = new Map<string, { ok: number; blamed: number }>();
@@ -295,7 +301,8 @@ async function computeOverview(now: number) {
     .filter(r => !r.aliasOfId)
     .map(r => ({
       ...r,
-      recommended: isRecommended(r, now),
+      runFail: runFail.get(r.id) ?? null,
+      recommended: isRecommended(r, now) && !runFail.has(r.id),
       versionStatus: versionStatus(r.version, newest),
       aliases: aliasRows
         .filter(a => a.aliasOfId === r.id)
