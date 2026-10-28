@@ -36,6 +36,7 @@ vi.mock('@/lib/transfer', async () => {
   const { prisma } = await import('@/lib/prisma');
   return {
     errorMessage: (e: unknown) => String(e),
+    recoverSwap: async () => ({}),
     transfer: async (o: { source: { id: string }; dest: { id: string }; budget: number; kind: string; runId: string }) => {
       const fail = failing.has(o.dest.id);
       const swap = await prisma.swap.create({

@@ -10,7 +10,7 @@ import { getOverview } from './stats';
 import { loadBackoff } from './backoff';
 import { withWalletLock } from './lock';
 import { publish } from './events';
-import { errorMessage, transfer } from './transfer';
+import { errorMessage, recoverSwap, transfer } from './transfer';
 import { DAY, HELD_RUN_STATUSES } from './constants';
 
 export const RUN_MIN = 10_000;
@@ -20,6 +20,8 @@ const FAILS_BEFORE_HOME = 3;
 const GIVE_UP_FAILS = FAILS_BEFORE_HOME + 96;
 const RETRY_MS = 15 * 60_000;
 const PAY_ATTEMPTS = 3;
+const PENDING_POLL_MS = 10_000;
+const UNISSUED_GIVE_UP_MS = 60 * 60_000;
 
 export const ACTIVE_STATUSES = ['running', 'paying'];
 
@@ -155,9 +157,13 @@ async function update(run: MintRun, data: Partial<MintRun>) {
 
 async function applyLastHop(run: MintRun, homeId: string): Promise<MintRun | null> {
   if (!run.lastSwapId) return run;
-  const swap = await prisma.swap.findUnique({ where: { id: run.lastSwapId } });
+  let swap = await prisma.swap.findUnique({ where: { id: run.lastSwapId } });
   if (!swap) return update(run, { lastSwapId: null });
-  if (swap.status === 'pending') return null;
+  if (swap.status === 'pending') {
+    await recoverSwap(swap, { giveUpMelt: false, giveUpMint: Date.now() - swap.timestamp.getTime() > UNISSUED_GIVE_UP_MS, tries: 1 });
+    swap = await prisma.swap.findUniqueOrThrow({ where: { id: swap.id } });
+    if (swap.status === 'pending') return null;
+  }
   const toHome = swap.destMintId === homeId;
   if (swap.status === 'success') {
     const value = run.value - swap.fee;
@@ -253,7 +259,15 @@ export async function advanceRuns(deadline = Date.now() + 45_000) {
   const log: string[] = [];
   while (run && Date.now() < deadline) {
     try {
-      run = await step(run, home);
+      const next = await step(run, home);
+      if (next) {
+        run = next;
+        continue;
+      }
+      const waiting: MintRun | null = await prisma.mintRun.findUnique({ where: { id: run.id } });
+      if (waiting?.status !== 'running' || !waiting.lastSwapId || Date.now() + PENDING_POLL_MS > deadline) break;
+      await new Promise(r => setTimeout(r, PENDING_POLL_MS));
+      run = waiting;
     } catch (error) {
       log.push(errorMessage(error));
       break;

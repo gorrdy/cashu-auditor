@@ -381,41 +381,39 @@ export async function transfer(opts: {
 
 export async function recoverPendingSwaps() {
   const pending = await prisma.swap.findMany({
-    where: { status: 'pending', updatedAt: { lt: new Date(Date.now() - RECOVERY_INTERVAL_MS) } },
-    include: { sourceMint: { select: { url: true } }, destMint: { select: { url: true } } },
+    where: { status: 'pending', kind: { not: 'run' }, updatedAt: { lt: new Date(Date.now() - RECOVERY_INTERVAL_MS) } },
+    select: { id: true },
     orderBy: { timestamp: 'asc' },
   });
   const results = [];
-  for (const { sourceMint, destMint, ...row } of pending) {
-    let swap: Swap = await prisma.swap.update({ where: { id: row.id }, data: { attempts: { increment: 1 } } });
+  for (const { id } of pending) {
+    const swap = await prisma.swap.update({ where: { id }, data: { attempts: { increment: 1 } } });
     const giveUp = swap.attempts >= MAX_RECOVERY_ATTEMPTS;
-    try {
-      if (swap.stage === 'melt') {
-        const wallet = await walletFor(sourceMint.url);
-        const resolved = await resolveMelt(wallet, swap);
-        swap = resolved.swap;
-        if (resolved.outcome === 'unpaid') {
-          results.push(await finish(swap, 'failed', unpaidError(swap.error)));
-          continue;
-        }
-        if (resolved.outcome === 'pending') {
-          if (await destConfirmsPayment(destMint.url, swap)) {
-            swap = await settleMelt(swap, []);
-          } else {
-            results.push(await finish(swap, giveUp ? 'failed' : 'pending', giveUp ? 'Melt stuck pending' : undefined));
-            continue;
-          }
-        }
-      }
-      const wallet = await walletFor(destMint.url);
-      const minted = await completeMint(wallet, swap, destMint.url);
-      const status = minted.status === 'pending' && giveUp ? 'failed' : minted.status;
-      results.push(await finish(swap, status, minted.error));
-    } catch (error) {
-      results.push(await finish(swap, giveUp ? 'failed' : 'pending', errorMessage(error)));
-    }
+    results.push(await recoverSwap(swap, { giveUpMelt: giveUp, giveUpMint: giveUp }));
   }
   return results;
+}
+
+export async function recoverSwap(row: Swap, opts: { giveUpMelt: boolean; giveUpMint: boolean; tries?: number }) {
+  const mints = await prisma.mint.findMany({ where: { id: { in: [row.sourceMintId, row.destMintId] } }, select: { id: true, url: true } });
+  const sourceUrl = mints.find(m => m.id === row.sourceMintId)!.url;
+  const destUrl = mints.find(m => m.id === row.destMintId)!.url;
+  let swap = row;
+  try {
+    if (swap.stage === 'melt') {
+      const resolved = await resolveMelt(await walletFor(sourceUrl), swap);
+      swap = resolved.swap;
+      if (resolved.outcome === 'unpaid') return finish(swap, 'failed', unpaidError(swap.error));
+      if (resolved.outcome === 'pending') {
+        if (!(await destConfirmsPayment(destUrl, swap))) return finish(swap, opts.giveUpMelt ? 'failed' : 'pending', opts.giveUpMelt ? 'Melt stuck pending' : undefined);
+        swap = await settleMelt(swap, []);
+      }
+    }
+    const minted = await completeMint(await walletFor(destUrl), swap, destUrl, opts.tries);
+    return finish(swap, minted.status === 'pending' && opts.giveUpMint ? 'failed' : minted.status, minted.error);
+  } catch (error) {
+    return finish(swap, opts.giveUpMelt && swap.stage === 'melt' ? 'failed' : 'pending', errorMessage(error));
+  }
 }
 
 export async function reconcileAbandonedSwaps() {
