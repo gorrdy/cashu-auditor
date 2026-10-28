@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isMintId } from '@/lib/mintUrl';
-import { getRun, invoiceQr, RUN_STATUS } from '@/lib/mintrun';
+import { getRun, invoiceQr, runPaymentRequest, RUN_STATUS } from '@/lib/mintrun';
+import { qrSvg } from '@/lib/donate';
 import SwapTable from '@/components/SwapTable';
 import StateBadge from '@/components/StateBadge';
 import { RunInvoice, RunOwner, RunRefresh } from '@/components/RunLive';
@@ -39,6 +40,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
   const end = run.finishedAt?.getTime() ?? (['running', 'paying'].includes(run.status) ? now : null);
   const elapsed = run.startedAt && end ? end - run.startedAt.getTime() : null;
   const label = RUN_STATUS[run.status] ?? run.status;
+  const creq = runPaymentRequest(run);
 
   return (
     <>
@@ -52,7 +54,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
 
       <div className="run-top">
         {run.status === 'invoice' ? (
-          <RunInvoice request={run.request} qr={await invoiceQr(run)} amount={run.amount} msLeft={Math.max(0, run.expiresAt.getTime() - now)} />
+          <RunInvoice id={run.id} request={run.request} qr={await invoiceQr(run)} creq={creq} creqQr={await qrSvg(`cashu:${creq}`)} amount={run.amount} msLeft={Math.max(0, run.expiresAt.getTime() - now)} />
         ) : (
           <div className="tiles run-tiles">
             <div className="tile"><div className="tile-label">Paid in</div><div className="tile-value">{run.amount.toLocaleString('en')}<small>sat</small></div></div>

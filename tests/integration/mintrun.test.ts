@@ -9,6 +9,7 @@ vi.mock('@/lib/donate', () => ({
   qrSvg: async () => '<svg/>',
   refundToken: async () => 'cashuBtoken',
   settleQuote: async () => 'unpaid',
+  redeem: async () => ({}),
 }));
 
 vi.mock('@/lib/stats', () => ({
@@ -73,6 +74,17 @@ describe('mint run', () => {
     expect(hops.filter(h => h.status === 'failed').map(h => h.destMintId)).toEqual([ids.b]);
     expect(done.returned).toBe(10_000 - 30 - 2);
     expect(done.value).toBe(10_000 - 30 - 3);
+  });
+
+  it('starts a run funded with ecash at the mint that issued it', async () => {
+    const run = await prisma.mintRun.create({
+      data: { amount: 10_000, value: 10_000, status: 'queued', currentMintId: ids.c, donate: true, keyHash: 'z', quoteId: 'run-q3', request: 'lnbc1', expiresAt: new Date() },
+    });
+    await mintrun.advanceRuns();
+    const hops = await prisma.swap.findMany({ where: { runId: run.id }, orderBy: { timestamp: 'asc' } });
+    expect(hops[0].sourceMintId).toBe(ids.c);
+    expect(hops.some(h => h.destMintId === ids.c)).toBe(false);
+    expect((await prisma.mintRun.findUniqueOrThrow({ where: { id: run.id } })).status).toBe('done');
   });
 
   it('keeps the run out of the audit balance while it holds sats', async () => {

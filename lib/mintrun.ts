@@ -1,7 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { MintRun } from './generated/prisma/client';
 import { prisma } from './prisma';
-import { createHomeQuote, homeMint, qrSvg, refundToken, settleQuote, type QuoteStore } from './donate';
+import { Amount, getTokenMetadata, PaymentRequest, PaymentRequestTransportType, type ProofLike } from '@cashu/cashu-ts';
+import { createHomeQuote, homeMint, qrSvg, redeem, refundToken, settleQuote, type DonateResult, type QuoteStore } from './donate';
+import { normalizeMintUrl } from './mintUrl';
+import { SITE_URL } from './site';
 import { lnurlInvoice, resolvePayout, sendPayout } from './operator/payout';
 import { getOverview } from './stats';
 import { loadBackoff } from './backoff';
@@ -70,6 +73,40 @@ export async function checkRunInvoice(run: MintRun) {
     const state = await settleQuote(asInvoice(run), home, false, runStore);
     if (state === 'paid') await withWalletLock('mint-run', () => settleQuote(asInvoice(run), home, true, runStore)).catch(() => null);
   } catch {}
+}
+
+export function runPaymentRequest(run: { id: string; amount: number }) {
+  return new PaymentRequest([{ type: PaymentRequestTransportType.POST, target: `${SITE_URL}/api/v1/pay` }], run.id, run.amount, 'sat', undefined, 'Cashu mint run', true).toEncodedCreqA();
+}
+
+export async function fundRun(id: string, mintUrl: string, token: string | ProofLike[]): Promise<DonateResult> {
+  const run = await prisma.mintRun.findUnique({ where: { id }, select: { status: true } });
+  if (!run) return { error: 'Unknown payment request' };
+  if (run.status !== 'invoice') return { error: 'This run is already funded or expired.' };
+  const amount = Array.isArray(token) ? token.reduce((s, p) => s + Amount.from(p.amount).toNumber(), 0) : getTokenMetadata(token).amount.toNumber();
+  if (amount < RUN_MIN || amount > RUN_MAX) return { error: `A run needs ${RUN_MIN.toLocaleString('en')} to ${RUN_MAX.toLocaleString('en')} sat, this token has ${amount.toLocaleString('en')} sat.` };
+  return redeem(mintUrl, token, async (mintId, received) => {
+    const r = await prisma.mintRun.updateMany({ where: { id, status: 'invoice' }, data: { status: 'queued', amount: received, value: received, currentMintId: mintId } });
+    if (!r.count) {
+      await prisma.donation.create({ data: { mintId, amount: received } });
+      return `This run was already funded, so ${received} sat were kept as a donation.`;
+    }
+    publish('swap', { status: 'queued', amount: received });
+    return `Received ${received.toLocaleString('en')} sat. The run starts within a minute.`;
+  }, false);
+}
+
+export async function fundRunWithToken(id: string, raw: string): Promise<DonateResult> {
+  let meta;
+  try {
+    meta = getTokenMetadata(raw);
+  } catch {
+    return { error: 'Not a valid Cashu token.' };
+  }
+  const mintUrl = normalizeMintUrl(meta.mint ?? '');
+  if (!mintUrl) return { error: 'Token has no valid https mint URL.' };
+  if ((meta.unit ?? 'sat') !== 'sat') return { error: 'Only sat tokens are accepted.' };
+  return fundRun(id, mintUrl, raw);
 }
 
 export async function invoiceQr(run: { request: string }) {
@@ -210,7 +247,8 @@ export async function advanceRuns(deadline = Date.now() + 45_000) {
   if (!run) {
     const queued = await prisma.mintRun.findFirst({ where: { status: 'queued' }, orderBy: { createdAt: 'asc' } });
     if (!queued) return null;
-    run = await update(queued, { status: 'running', route: JSON.stringify(await planRoute(queued.value, home.id)), currentMintId: home.id, startedAt: new Date() });
+    const start = queued.currentMintId ?? home.id;
+    run = await update(queued, { status: 'running', route: JSON.stringify((await planRoute(queued.value, home.id)).filter(m => m !== start)), currentMintId: start, startedAt: new Date() });
   }
   const log: string[] = [];
   while (run && Date.now() < deadline) {

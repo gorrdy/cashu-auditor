@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { publish } from '@/lib/events';
 import { trackMint } from '@/lib/track';
 import { createDonationInvoice, redeemToken } from '@/lib/donate';
-import { createRun } from '@/lib/mintrun';
+import { createRun, fundRunWithToken } from '@/lib/mintrun';
 
 export type FormResult = { ok?: string; error?: string } | null;
 
@@ -36,4 +36,8 @@ export async function createInvoice(amount: number) {
 
 export async function startRun(input: { amount: number; returnTo: string; donate: boolean }) {
   return createRun({ amount: Number(input.amount), returnTo: String(input.returnTo ?? ''), donate: input.donate === true });
+}
+
+export async function fundRunToken(id: string, _prev: FormResult, formData: FormData): Promise<FormResult> {
+  return fundRunWithToken(String(id), String(formData.get('token') ?? '').trim());
 }

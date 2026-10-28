@@ -113,7 +113,7 @@ export default function Methodology() {
 
       <h2 id="mint-run">Mint runs</h2>
       <p>
-        A <Link href="/run">mint run</Link> is funded by a visitor with 10,000 to 100,000 sat paid to the home mint. The auditor then
+        A <Link href="/run">mint run</Link> is funded by a visitor with 10,000 to 100,000 sat, paid to the home mint over Lightning or as Cashu ecash from any mint, in which case the run starts at that mint. The auditor then
         sends the whole amount, minus fees, over Lightning through every recommended mint whose limits allow it, in random order,
         one mint at a time, and finally back to the home mint. A mint that cannot quote, receive or pay the amount is skipped;
         after three failures in a row the run returns home. The visitor pays only the fees actually charged; what is left goes to

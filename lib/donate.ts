@@ -3,7 +3,7 @@ import { Amount, getEncodedToken, getTokenMetadata, PaymentRequest, PaymentReque
 import { prisma } from './prisma';
 import { createWallet, restoreProofs } from './wallet';
 import { consolidateToHomeMint, homeMintUrl } from './consolidate';
-import { withWalletLock } from './lock';
+import { waitForWalletLock, withWalletLock } from './lock';
 import { assertPublicMintUrl, normalizeMintUrl } from './mintUrl';
 import { errorMessage, storeProofs, toCashu, withTimeout } from './transfer';
 import { publish } from './events';
@@ -51,8 +51,8 @@ const donationCredit: Credit = async (mintId, amount) => {
   return `Thank you. Received ${amount} sat.`;
 };
 
-async function redeem(mintUrl: string, token: string | ProofLike[], credit: Credit = donationCredit, consolidate = true): Promise<DonateResult> {
-  const result = await withWalletLock('donate', async (): Promise<DonateResult> => {
+export async function redeem(mintUrl: string, token: string | ProofLike[], credit: Credit = donationCredit, consolidate = true): Promise<DonateResult> {
+  const result = await waitForWalletLock('donate', async (): Promise<DonateResult> => {
     try {
       await assertPublicMintUrl(mintUrl);
       const wallet = createWallet(mintUrl);
@@ -122,6 +122,11 @@ export async function redeemPayment(payload: unknown): Promise<DonateResult> {
   const mintUrl = typeof mint === 'string' ? normalizeMintUrl(mint) : null;
   if (!mintUrl) return { error: 'Invalid mint URL' };
   if (!Array.isArray(proofs) || proofs.length === 0 || proofs.length > 200 || !proofs.every(isProof)) return { error: 'Invalid proofs' };
+  const id = (payload as Record<string, unknown>).id;
+  if (typeof id === 'string' && id) {
+    const { fundRun } = await import('./mintrun');
+    return fundRun(id, mintUrl, proofs);
+  }
   return redeem(mintUrl, proofs);
 }
 

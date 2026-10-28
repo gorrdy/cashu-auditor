@@ -21,7 +21,7 @@ export default async function RunPage() {
           <p className="eyebrow">Mint run</p>
           <h1 className="h1" style={{ marginTop: 8 }}>A bank run on the recommended mints</h1>
           <p className="soft" style={{ maxWidth: 640 }}>
-            Daily swaps move a few sats. A mint run moves a real amount. You pay {fmtSat(RUN_MIN)} or more, and the auditor
+            Daily swaps move a few sats. A mint run moves a real amount. You pay {fmtSat(RUN_MIN)} or more over Lightning or as Cashu ecash, and the auditor
             sends the whole sum over Lightning from mint to mint through every recommended mint in turn: each one has to issue the
             ecash and then pay it all out again. The run ends back at the home mint, and what is left after fees goes back to your
             Lightning address or to the audit.
