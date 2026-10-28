@@ -146,7 +146,7 @@ async function computeOverview(now: number) {
     onlineHistory(),
     prisma.swap.aggregate({ where: { kind: 'swap', status: 'success', timestamp: { gte: new Date(now - 7 * DAY) } }, _avg: { fee: true } }),
     prisma.swap.aggregate({ where: { kind: { notIn: ['swap', 'run'] }, timestamp: { gte: new Date(now - 7 * DAY) } }, _sum: { fee: true } }),
-    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }),
+    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true, change: true } }),
     prisma.swap.findMany({
       where: { kind: 'run', timestamp: { gte: new Date(now - RUN_FAIL_DAYS * DAY) } },
       select: { status: true, stage: true, error: true, sourceMintId: true, destMintId: true, timestamp: true, duration: true },
@@ -312,7 +312,7 @@ async function computeOverview(now: number) {
     }));
 
   const counted = rows.filter(r => !r.isTest);
-  const balance = Math.max(0, counted.reduce((s, r) => s + r.balance, 0) - (runHeld._sum.value ?? 0));
+  const balance = Math.max(0, counted.reduce((s, r) => s + r.balance, 0) - (runHeld._sum.value ?? 0) - (runHeld._sum.change ?? 0));
   const real = primaries.filter(r => !r.isTest);
   const online = primaries.filter(r => r.latestStatus === 'online');
   const senders = online.filter(r => r.balance >= MIN_SWAP + FEE_BUFFER).length;

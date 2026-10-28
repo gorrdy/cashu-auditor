@@ -14,9 +14,9 @@ export async function feesSince(since: number) {
 export async function totalBalance() {
   const [own, held] = await Promise.all([
     prisma.proof.aggregate({ where: { state: 'unspent', mint: { isTest: false } }, _sum: { amount: true } }),
-    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }),
+    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true, change: true } }),
   ]);
-  return Math.max(0, (own._sum.amount ?? 0) - (held._sum.value ?? 0));
+  return Math.max(0, (own._sum.amount ?? 0) - (held._sum.value ?? 0) - (held._sum.change ?? 0));
 }
 
 export async function budgetState(now = Date.now()) {

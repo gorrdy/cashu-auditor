@@ -37,7 +37,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
     feeMap.set(h.sourceMintId, e);
   }
   const byMint = [...feeMap.values()].sort((a, b) => b.fee - a.fee);
-  const fees = run.status === 'invoice' || run.status === 'expired' ? 0 : run.amount - (run.status === 'done' && run.returned ? run.returned : run.value);
+  const fees = run.status === 'invoice' || run.status === 'expired' ? 0 : run.amount - (run.status === 'done' && run.returned ? run.returned : run.value + run.change);
   const passed = new Set(swaps.filter(s => s.status === 'success').flatMap(s => [s.sourceMintId, s.destMintId]));
   const failedAt = new Map<string, string>();
   for (const s of swaps) {
@@ -66,8 +66,8 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
         ) : (
           <div className="tiles run-tiles">
             <div className="tile"><div className="tile-label">Paid in</div><div className="tile-value">{run.amount.toLocaleString('en')}<small>sat</small></div></div>
-            <div className="tile"><div className="tile-label">{run.status === 'done' && run.returned ? 'Paid back' : 'Left'}</div><div className="tile-value">{(run.status === 'done' && run.returned ? run.returned : run.value).toLocaleString('en')}<small>sat</small></div></div>
-            <div className="tile"><div className="tile-label">Fees and reserves</div><div className="tile-value">{fees.toLocaleString('en')}<small>sat</small></div><div className="tile-sub">{run.amount ? ((fees / run.amount) * 100).toFixed(2) : 0} % of the amount</div></div>
+            <div className="tile"><div className="tile-label">{run.status === 'done' && run.returned ? 'Paid back' : 'Left'}</div><div className="tile-value">{(run.status === 'done' && run.returned ? run.returned : run.value + run.change).toLocaleString('en')}<small>sat</small></div></div>
+            <div className="tile"><div className="tile-label">Fees</div><div className="tile-value">{fees.toLocaleString('en')}<small>sat</small></div><div className="tile-sub">{run.amount ? ((fees / run.amount) * 100).toFixed(2) : 0} % of the amount</div></div>
             <div className="tile"><div className="tile-label">Mints passed</div><div className="tile-value">{route.filter(m => passed.has(m.id)).length}<small>/ {route.length}</small></div><div className="tile-sub">{elapsed != null ? fmtDuration(elapsed) : 'Not started'}</div></div>
           </div>
         )}
@@ -95,7 +95,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
       <section className="section">
         <div className="section-head">
           <h2 className="h2">Hops</h2>
-          <span className="small soft">Reserve is what the paying mint locks for Lightning fees, fee is what it actually kept.</span>
+          <span className="small soft">Reserve is what the paying mint locks for Lightning fees, fee is what it actually kept. The unused reserve comes back to the run at the end.</span>
         </div>
         {hops.length === 0 ? (
           <SwapTable swaps={hops} emptyText={run.status === 'invoice' ? 'The run starts once the invoice is paid.' : 'Waiting for the first hop.'} />
@@ -104,7 +104,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
             <table className="data">
               <thead>
                 <tr>
-                  <th>Result</th><th>From</th><th>To</th><th className="r">Arrived</th><th className="r c-sm">Reserve</th><th className="r">Fee</th><th className="r c-md">Unused reserve</th><th className="r c-lg">Time</th><th className="c-lg">Detail</th>
+                  <th>Result</th><th>From</th><th>To</th><th className="r">Arrived</th><th className="r c-sm">Reserve</th><th className="r">Fee</th><th className="r c-md">Change back</th><th className="r c-lg">Time</th><th className="c-lg">Detail</th>
                 </tr>
               </thead>
               <tbody>

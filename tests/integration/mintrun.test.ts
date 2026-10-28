@@ -73,8 +73,8 @@ describe('mint run', () => {
     expect(hops.filter(h => h.status === 'success')).toHaveLength(3);
     expect(hops.at(-1)!.destMintId).toBe(ids.home);
     expect(hops.filter(h => h.status === 'failed').map(h => h.destMintId)).toEqual([ids.b]);
-    expect(done.returned).toBe(10_000 - 150 - 2);
-    expect(done.value).toBe(10_000 - 150 - 3);
+    expect(done.returned).toBe(10_000 - 30 - 2);
+    expect(done.value).toBe(10_000 - 30 - 3);
   });
 
   it('starts a run funded with ecash at the mint that issued it', async () => {

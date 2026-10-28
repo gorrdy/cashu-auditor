@@ -29,7 +29,7 @@ export default async function RunPage() {
           <ul className="soft small run-points">
             <li>Up to three runs at a time, taking turns, one hop every few seconds. A run of 20 mints usually takes 10 to 30 minutes, and a stuck payment in one run does not hold up the others.</li>
             <li>A mint that cannot take or pay the amount is skipped and the failure is shown. After three failures in a row the run goes straight home.</li>
-            <li>Each hop costs its Lightning fee reserve, usually under 1 %. The run carries on with exactly what arrived.</li>
+            <li>You pay only the fees the mints actually keep, usually a fraction of a percent per hop. Unused fee reserves are paid back with the rest.</li>
             <li>Every hop is public on the run page. Your Lightning address is not.</li>
           </ul>
         </div>
@@ -50,7 +50,7 @@ export default async function RunPage() {
                     <td><Link href={`/run/${r.id}`}>{fmtDateTime(r.startedAt ?? r.createdAt)}</Link></td>
                     <td>{RUN_STATUS[r.status] ?? r.status}</td>
                     <td className="r nowrap">{fmtSat(r.amount)}</td>
-                    <td className="r nowrap c-sm">{fmtSat(r.value)}</td>
+                    <td className="r nowrap c-sm">{fmtSat(r.value + r.change)}</td>
                     <td className="r c-md">{Math.min(r.position, (JSON.parse(r.route) as string[]).length)} / {(JSON.parse(r.route) as string[]).length}</td>
                   </tr>
                 ))}

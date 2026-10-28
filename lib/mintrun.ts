@@ -122,7 +122,8 @@ export async function runOwner(id: string, key: string) {
 }
 
 export async function runHeld() {
-  return (await prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }))._sum.value ?? 0;
+  const held = await prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true, change: true } });
+  return (held._sum.value ?? 0) + (held._sum.change ?? 0);
 }
 
 export async function activeRunMints() {
@@ -173,8 +174,9 @@ async function applyLastHop(run: MintRun, homeId: string): Promise<MintRun | nul
   const toHome = swap.destMintId === homeId;
   if (swap.status === 'success') {
     const value = Math.min(run.value, swap.amount);
-    if (toHome) return update(run, { lastSwapId: null, value, currentMintId: homeId, failStreak: 0, status: 'paying' });
-    return update(run, { lastSwapId: null, value, currentMintId: swap.destMintId, failStreak: 0, position: run.position + 1 });
+    const change = run.change + Math.max(0, run.value - swap.amount - swap.fee);
+    if (toHome) return update(run, { lastSwapId: null, value: value + change, change: 0, currentMintId: homeId, failStreak: 0, status: 'paying' });
+    return update(run, { lastSwapId: null, value, change, currentMintId: swap.destMintId, failStreak: 0, position: run.position + 1 });
   }
   if (swap.stage === 'mint') {
     return update(run, { lastSwapId: null, status: 'stuck', finishedAt: new Date(), error: 'The receiving mint was paid but did not issue the ecash' });
@@ -348,7 +350,7 @@ export async function recentRuns(take = 10) {
     where: { status: { notIn: ['invoice', 'expired'] } },
     orderBy: { createdAt: 'desc' },
     take,
-    select: { id: true, amount: true, value: true, status: true, route: true, position: true, createdAt: true, startedAt: true, finishedAt: true },
+    select: { id: true, amount: true, value: true, change: true, status: true, route: true, position: true, createdAt: true, startedAt: true, finishedAt: true },
   });
 }
 

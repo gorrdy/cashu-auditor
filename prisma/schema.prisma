@@ -422,6 +422,7 @@ model MintRun {
   fundedBy      String?
   quoteClosed   Boolean   @default(false)
   extra         Int       @default(0)
+  change        Int       @default(0)
   extraToken    String?
   value         Int
   status        String
