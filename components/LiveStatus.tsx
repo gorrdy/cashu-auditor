@@ -34,20 +34,36 @@ export default function LiveStatus() {
       }, wait);
     };
 
-    const es = new EventSource('/api/live');
-    es.onopen = () => setState('live');
-    es.onerror = () => setState(es.readyState === EventSource.CLOSED ? 'offline' : 'connecting');
     const onEvent = (e: MessageEvent) => {
       setLast(e.type);
       refresh();
     };
-    for (const t of TYPES) es.addEventListener(t, onEvent);
+    let es: EventSource;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let delay = 5_000;
+    const connect = () => {
+      es = new EventSource('/api/live');
+      es.onopen = () => {
+        if (delay > 5_000) refresh();
+        delay = 5_000;
+        setState('live');
+      };
+      es.onerror = () => {
+        if (es.readyState !== EventSource.CLOSED) return setState('connecting');
+        setState('offline');
+        retry = setTimeout(connect, delay);
+        delay = Math.min(delay * 2, 60_000);
+      };
+      for (const t of TYPES) es.addEventListener(t, onEvent);
+    };
+    connect();
     const onVisible = () => {
       if (document.visibilityState === 'visible' && pending.current) refresh();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       es.close();
+      if (retry) clearTimeout(retry);
       document.removeEventListener('visibilitychange', onVisible);
       if (timer.current) clearTimeout(timer.current);
     };
