@@ -11,6 +11,7 @@ export async function GET() {
   const pages: { loc: string; priority: number; freq: string; lastmod?: string }[] = [
     { loc: `${SITE_URL}/`, priority: 1, freq: 'hourly', lastmod: today },
     { loc: `${SITE_URL}/learn`, priority: 0.9, freq: 'monthly' },
+    { loc: `${SITE_URL}/run`, priority: 0.7, freq: 'daily' },
     { loc: `${SITE_URL}/methodology`, priority: 0.7, freq: 'monthly' },
     { loc: `${SITE_URL}/infrastructure`, priority: 0.6, freq: 'daily', lastmod: today },
     { loc: `${SITE_URL}/compare`, priority: 0.6, freq: 'daily' },

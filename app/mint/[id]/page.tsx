@@ -51,7 +51,7 @@ export default async function MintPage({ params, searchParams }: Props) {
   const alias = await prisma.mint.findUnique({ where: { id }, select: { aliasOfId: true } });
   if (alias?.aliasOfId) permanentRedirect(`/mint/${alias.aliasOfId}`);
   const range: RangeKey = parseRange((await searchParams).range);
-  const [d, swaps, x, overview] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range), getOverview()]);
+  const [d, swaps, x, overview, runHops] = await Promise.all([getMintDetail(id, range), getRecentSwaps({ mintId: id, take: 30 }), getMintExtras(id, range), getOverview(), getRecentSwaps({ mintId: id, take: 10, kind: 'run' })]);
   const row = overview.mints.find(m => m.id === id);
   const verifiedOperator = (await prisma.mintClaim.count({ where: { mintId: id, verifiedAt: { not: null } } })) > 0;
   if (!d) notFound();
@@ -395,6 +395,16 @@ export default async function MintPage({ params, searchParams }: Props) {
           </table>
         </div>
       </section>
+
+      {runHops.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="h2">Mint runs</h2>
+            <span className="small soft">Large amounts sent through this mint in a <Link href="/run">mint run</Link>. Not part of the score.</span>
+          </div>
+          <SwapTable swaps={runHops} emptyText="" />
+        </section>
+      )}
 
       <section className="section">
         <div className="section-head"><h2 className="h2">Swaps through this mint</h2></div>

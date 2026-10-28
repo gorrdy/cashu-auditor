@@ -233,10 +233,12 @@ export async function transfer(opts: {
   dest: MintRef;
   amount?: number;
   maxAmount?: number;
-  kind?: 'swap' | 'consolidate' | 'topup';
+  budget?: number;
+  kind?: 'swap' | 'consolidate' | 'topup' | 'run';
   operatorId?: string;
+  runId?: string;
 }): Promise<TransferResult> {
-  const { source, dest, kind = 'swap', operatorId } = opts;
+  const { source, dest, kind = 'swap', operatorId, runId } = opts;
   const started = Date.now();
   let stage = 'mint_quote';
   let target = opts.amount ?? 0;
@@ -244,7 +246,7 @@ export async function transfer(opts: {
   const fail = async (error: string): Promise<TransferResult> => {
     const duration = Date.now() - started;
     const swap = await prisma.swap.create({
-      data: { kind, operatorId, sourceMintId: source.id, destMintId: dest.id, amount: target, status: 'failed', stage, duration, error },
+      data: { kind, operatorId, runId, sourceMintId: source.id, destMintId: dest.id, amount: target, status: 'failed', stage, duration, error },
     });
     publish('swap', { status: 'failed', amount: target });
     return { status: 'failed', swapId: swap.id, amount: target, fee: 0, duration, stage, error, fundsMoved: false };
@@ -261,11 +263,12 @@ export async function transfer(opts: {
     const stored = await prisma.proof.findMany({ where: { mintId: source.id, state: 'unspent' } });
     const proofs = stored.map(toCashu);
     const balance = sum(proofs);
-    if (opts.amount === undefined) target = balance - Math.max(2, Math.ceil(balance * 0.02));
+    const cap = Math.min(balance, opts.budget ?? balance);
+    if (opts.amount === undefined) target = cap - Math.max(2, Math.ceil(cap * (opts.budget ? 0.01 : 0.02)));
     const limits = await amountLimits(source.id, dest.id);
     if (target > limits.max) target = limits.max;
     if (target < limits.min) {
-      if (limits.min > (opts.maxAmount ?? target) || limits.min > balance) {
+      if (limits.min > (opts.maxAmount ?? target) || limits.min > cap) {
         stage = 'limits';
         return fail(`Amount ${target} sat is below the mint minimum of ${limits.min} sat`);
       }
@@ -290,14 +293,14 @@ export async function transfer(opts: {
         return fail(`Fee reserve ${num(meltQuote.fee_reserve)} sat is too high for ${target} sat`);
       }
       const base = num(meltQuote.amount) + num(meltQuote.fee_reserve);
-      send = balance >= base ? sourceWallet.selectProofsToSend(proofs, base, true).send : [];
+      send = cap >= base ? sourceWallet.selectProofsToSend(proofs, base, true).send : [];
       const needed = base + (send.length ? num(sourceWallet.getFeesForProofs(send)) : 0);
-      if (send.length && sum(send) >= needed) break;
+      if (send.length && sum(send) >= needed && needed <= cap) break;
       if (opts.amount !== undefined || attempt === 3) {
         stage = 'balance';
         return fail(`Insufficient balance: need ${needed} sat, have ${balance} sat`);
       }
-      target -= Math.max(1, needed - balance + 1);
+      target -= Math.max(1, needed - cap + 1);
       send = [];
     }
 
@@ -322,6 +325,7 @@ export async function transfer(opts: {
     data: {
       kind,
       operatorId,
+      runId,
       sourceMintId: source.id,
       destMintId: dest.id,
       amount: target,

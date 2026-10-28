@@ -16,7 +16,7 @@ export async function recordRevenue(claimId: string | null, amount: number, sour
   if (amount > 0) await prisma.revenueEntry.create({ data: { claimId, amount, source } });
 }
 
-async function lnurlInvoice(address: string, amount: number) {
+export async function lnurlInvoice(address: string, amount: number) {
   const [user, domain] = address.split('@');
   if (!user || !domain || !/^[a-z0-9.-]+$/i.test(domain)) throw new Error('Invalid Lightning address');
   const get = async (url: string) => {
@@ -55,7 +55,7 @@ async function fail(payout: Payout, error: string) {
   return { status: 'failed', error };
 }
 
-async function resolve(payout: Payout) {
+export async function resolvePayout(payout: Payout) {
   const home = await homeMint();
   if (!home) return { status: 'pending', error: 'Home mint missing' };
   const p = await prisma.payout.update({ where: { id: payout.id }, data: { attempts: { increment: 1 } } });
@@ -87,12 +87,16 @@ async function resolve(payout: Payout) {
 export async function runPayout() {
   const address = process.env.PAYOUT_LN_ADDRESS?.trim();
   if (!address) return { skipped: 'No payout address configured' };
-  const pending = await prisma.payout.findFirst({ where: { status: 'pending' }, orderBy: { createdAt: 'asc' } });
-  if (pending) return resolve(pending);
+  const pending = await prisma.payout.findFirst({ where: { status: 'pending', runId: null }, orderBy: { createdAt: 'asc' } });
+  if (pending) return resolvePayout(pending);
 
   const entries = await prisma.revenueEntry.findMany({ where: { payoutId: null }, select: { id: true, amount: true } });
   const amount = entries.reduce((s, e) => s + e.amount, 0);
   if (amount < MIN_PAYOUT) return { skipped: `${amount} sat due, minimum ${MIN_PAYOUT}` };
+  return sendPayout(address, amount, { link: id => prisma.revenueEntry.updateMany({ where: { id: { in: entries.map(e => e.id) } }, data: { payoutId: id } }) });
+}
+
+export async function sendPayout(address: string, amount: number, opts: { link?: (payoutId: string) => Promise<unknown>; runId?: string; maxSpend?: number } = {}) {
   const home = await homeMint();
   if (!home) return { error: 'Home mint missing' };
 
@@ -101,22 +105,28 @@ export async function runPayout() {
   const wallet = createWallet(home.url);
   try {
     await withTimeout(wallet.loadMint());
-    const invoice = await lnurlInvoice(address, amount);
-    const quote = await withTimeout(wallet.createMeltQuoteBolt11(invoice));
+    let invoice = await lnurlInvoice(address, amount);
+    let quote = await withTimeout(wallet.createMeltQuoteBolt11(invoice));
+    if (opts.maxSpend !== undefined && amount + num(quote.fee_reserve) > opts.maxSpend) {
+      amount = opts.maxSpend - num(quote.fee_reserve) - 1;
+      if (amount < 1) return { error: 'Fee reserve exceeds the amount' };
+      invoice = await lnurlInvoice(address, amount);
+      quote = await withTimeout(wallet.createMeltQuoteBolt11(invoice));
+    }
     const need = num(quote.amount) + num(quote.fee_reserve);
     const proofs = await prisma.proof.findMany({ where: { mintId: home.id, state: 'unspent' } });
     const selected = wallet.selectProofsToSend(proofs.map(toCashu), need, true).send as CashuProof[];
     if (selected.reduce((s, p) => s + num(p.amount), 0) < need + num(wallet.getFeesForProofs(selected))) return { error: `Home mint holds too little for ${need} sat` };
     send = selected;
-    payout = await prisma.payout.create({ data: { address, amount, invoice, meltQuoteId: quote.quote, feeReserve: num(quote.fee_reserve), status: 'pending' } });
-    await prisma.revenueEntry.updateMany({ where: { id: { in: entries.map(e => e.id) } }, data: { payoutId: payout.id } });
+    payout = await prisma.payout.create({ data: { address, amount, invoice, meltQuoteId: quote.quote, feeReserve: num(quote.fee_reserve), status: 'pending', runId: opts.runId } });
+    await opts.link?.(payout.id);
     const reserved = await prisma.proof.updateMany({ where: { secret: { in: send.map(p => p.secret) }, state: 'unspent' }, data: { state: 'reserved', swapId: payout.id } });
     if (reserved.count !== send.length) return fail(payout, 'Proofs changed during planning');
     try {
       const res = await withTimeout(wallet.meltProofsBolt11(quote, send), 60_000);
       if (res.quote.state === 'PAID') return settle(payout, res.change ?? []);
     } catch {}
-    return resolve(payout);
+    return resolvePayout(payout);
   } catch (error) {
     return { error: errorMessage(error) };
   }

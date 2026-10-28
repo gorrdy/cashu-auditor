@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { startOfDay } from './time';
+import { HELD_RUN_STATUSES } from './constants';
 
 export const SLOW_BELOW = 3_000;
 export const STOP_BELOW = 1_000;
@@ -7,11 +8,15 @@ export const SLOW_INTERVAL_MS = 60 * 60_000;
 export const FEE_BUDGET_PER_DAY = Number(process.env.SWAP_FEE_BUDGET_SAT ?? 1000);
 
 export async function feesSince(since: number) {
-  return (await prisma.swap.aggregate({ where: { timestamp: { gte: new Date(since) } }, _sum: { fee: true } }))._sum.fee ?? 0;
+  return (await prisma.swap.aggregate({ where: { timestamp: { gte: new Date(since) }, kind: { not: 'run' } }, _sum: { fee: true } }))._sum.fee ?? 0;
 }
 
 export async function totalBalance() {
-  return (await prisma.proof.aggregate({ where: { state: 'unspent', mint: { isTest: false } }, _sum: { amount: true } }))._sum.amount ?? 0;
+  const [own, held] = await Promise.all([
+    prisma.proof.aggregate({ where: { state: 'unspent', mint: { isTest: false } }, _sum: { amount: true } }),
+    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }),
+  ]);
+  return Math.max(0, (own._sum.amount ?? 0) - (held._sum.value ?? 0));
 }
 
 export async function budgetState(now = Date.now()) {

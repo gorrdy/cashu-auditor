@@ -6,6 +6,7 @@ import { recoverPendingSwaps, transfer } from '@/lib/transfer';
 import { homeMintUrl } from '@/lib/consolidate';
 import { budgetState } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
+import { activeRunMints, advanceRuns } from '@/lib/mintrun';
 import { latestStatuses, trustState } from '@/lib/eligible';
 import { startOfDay } from '@/lib/time';
 import { dailyCoverage, lastTried, pairKey, pairValue } from '@/lib/pairSchedule';
@@ -37,15 +38,17 @@ export async function GET(request: Request) {
 
   const result = await withWalletLock('run-swap', async () => {
     const recovered = await recoverPendingSwaps();
+    const run = await advanceRuns().catch(error => ({ error: String(error) }));
     await settleDonationInvoices().catch(error => console.error('settleDonationInvoices failed:', error));
     await settleTopupInvoices().catch(error => console.error('settleTopupInvoices failed:', error));
     const budget = await budgetState();
-    if (!budget.allowed) return { recovered, budget: budget.reason };
+    if (!budget.allowed) return { recovered, run, budget: budget.reason };
 
     const now = Date.now();
     const [status, uptime] = await Promise.all([latestStatuses(), uptime24h(now)]);
     const mints = await prisma.mint.findMany({ where: { aliasOfId: null }, select: { id: true, url: true, addedAt: true, isTest: true, methods: true } });
-    const online = mints.filter(m => status.get(m.id) === 'online');
+    const inRun = await activeRunMints();
+    const online = mints.filter(m => status.get(m.id) === 'online' && !inRun.has(m.id));
 
     const balances = await prisma.proof.groupBy({ by: ['mintId'], where: { state: 'unspent' }, _sum: { amount: true } });
     const balanceOf = new Map(balances.map(b => [b.mintId, b._sum.amount ?? 0]));
@@ -68,7 +71,7 @@ export async function GET(request: Request) {
     const sources = online.filter(
       m => (balanceOf.get(m.id) ?? 0) >= Math.max(MIN_SWAP, bolt11Min(m.methods, 'melt')) + FEE_BUFFER && backoff.canSend(m.id)
     );
-    if (sources.length === 0) return { recovered, error: `No online mint holds ${MIN_SWAP + FEE_BUFFER} sat` };
+    if (sources.length === 0) return { recovered, run, error: `No online mint holds ${MIN_SWAP + FEE_BUFFER} sat` };
     const receivers = online.filter(m => {
       const u = uptime.get(m.id);
       return !m.isTest && backoff.canReceive(m.id) && now - m.addedAt.getTime() >= DEST_MIN_AGE_MS && !!u && u.total >= DEST_MIN_CHECKS && u.up / u.total >= DEST_MIN_UPTIME;
@@ -88,7 +91,7 @@ export async function GET(request: Request) {
         candidates.push({ source, dest, amount, priority: priority + Math.random() });
       }
     }
-    if (candidates.length === 0) return { recovered, skipped: 'Every mint that can be tested has paid out and received today' };
+    if (candidates.length === 0) return { recovered, run, skipped: 'Every mint that can be tested has paid out and received today' };
     candidates.sort((a, b) => b.priority - a.priority);
     const { source, amount } = candidates[0];
     const dests = candidates.filter(c => c.source.id === source.id).map(c => c.dest);
@@ -99,7 +102,7 @@ export async function GET(request: Request) {
       attempts.push({ dest: dest.url, ...r });
       if (r.status !== 'failed' || r.fundsMoved || r.stage !== 'mint_quote') break;
     }
-    return { recovered, source: source.url, amount, attempts };
+    return { recovered, run, source: source.url, amount, attempts };
   });
 
   if (!result) return NextResponse.json({ error: 'Wallet busy' }, { status: 409 });

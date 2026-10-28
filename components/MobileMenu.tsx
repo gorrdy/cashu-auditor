@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/#swaps', label: 'Swaps' },
   { href: '/compare', label: 'Compare' },
   { href: '/infrastructure', label: 'Infrastructure' },
+  { href: '/run', label: 'Mint run' },
   { href: '/learn', label: 'Learn' },
   { href: '/methodology', label: 'Methodology' },
 ];

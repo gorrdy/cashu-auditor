@@ -6,7 +6,7 @@ import { bus } from './events';
 import { latestAudits } from './eligible';
 import { newestVersions, versionStatus } from './versions';
 import { FEE_BUDGET_PER_DAY, STOP_BELOW } from './budget';
-import { DAY, FEE_BUFFER, HOUR, MIN_AGE_MS, MIN_SWAP } from './constants';
+import { DAY, FEE_BUFFER, HELD_RUN_STATUSES, HOUR, MIN_AGE_MS, MIN_SWAP } from './constants';
 
 export { HOUR, DAY } from './constants';
 export const TZ = 'Europe/Prague';
@@ -126,7 +126,7 @@ export function getOverview(now?: number) {
 }
 
 async function computeOverview(now: number) {
-  const [mints, latest, uptime, strips, balances, donations, allSwaps, reviews, history, swapFees7d, otherFees7d] = await Promise.all([
+  const [mints, latest, uptime, strips, balances, donations, allSwaps, reviews, history, swapFees7d, otherFees7d, runHeld] = await Promise.all([
     prisma.mint.findMany({ select: { id: true, url: true, name: true, version: true, iconHash: true, source: true, inputFeePpk: true, websockets: true, onionUrl: true, units: true, offlineSince: true, aliasOfId: true, isTest: true, addedAt: true } }),
     latestAudits(now),
     uptimeWindows(now),
@@ -144,7 +144,8 @@ async function computeOverview(now: number) {
     prisma.mintReview.groupBy({ by: ['mintId'], where: { rating: { not: null } }, _avg: { rating: true }, _count: { rating: true } }),
     onlineHistory(),
     prisma.swap.aggregate({ where: { kind: 'swap', status: 'success', timestamp: { gte: new Date(now - 7 * DAY) } }, _avg: { fee: true } }),
-    prisma.swap.aggregate({ where: { kind: { not: 'swap' }, timestamp: { gte: new Date(now - 7 * DAY) } }, _sum: { fee: true } }),
+    prisma.swap.aggregate({ where: { kind: { notIn: ['swap', 'run'] }, timestamp: { gte: new Date(now - 7 * DAY) } }, _sum: { fee: true } }),
+    prisma.mintRun.aggregate({ where: { status: { in: HELD_RUN_STATUSES } }, _sum: { value: true } }),
   ]);
 
   const reviewBy = new Map(reviews.map(r => [r.mintId, { avg: r._avg.rating, count: r._count.rating }]));
@@ -302,7 +303,7 @@ async function computeOverview(now: number) {
     }));
 
   const counted = rows.filter(r => !r.isTest);
-  const balance = counted.reduce((s, r) => s + r.balance, 0);
+  const balance = Math.max(0, counted.reduce((s, r) => s + r.balance, 0) - (runHeld._sum.value ?? 0));
   const real = primaries.filter(r => !r.isTest);
   const online = primaries.filter(r => r.latestStatus === 'online');
   const senders = online.filter(r => r.balance >= MIN_SWAP + FEE_BUFFER).length;
@@ -343,9 +344,10 @@ export function isRecommended(r: { isTest: boolean; latestStatus?: string; uptim
     r.pending === 0 && r.reserved === 0 && r.week.blamed === 0 && r.week.out > 0 && r.week.in > 0;
 }
 
-export async function getRecentSwaps(opts: { mintId?: string; take?: number } = {}) {
+export async function getRecentSwaps(opts: { mintId?: string; take?: number; kind?: string } = {}) {
+  const kind = opts.kind ? { kind: opts.kind } : COUNTED_SWAP;
   return prisma.swap.findMany({
-    where: opts.mintId ? { AND: [{ OR: [{ sourceMintId: opts.mintId }, { destMintId: opts.mintId }] }, COUNTED_SWAP] } : COUNTED_SWAP,
+    where: opts.mintId ? { AND: [{ OR: [{ sourceMintId: opts.mintId }, { destMintId: opts.mintId }] }, kind] } : kind,
     orderBy: { timestamp: 'desc' },
     take: opts.take ?? 25,
     include: {

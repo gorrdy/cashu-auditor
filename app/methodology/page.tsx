@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import StateBadge from '@/components/StateBadge';
 
@@ -108,6 +109,17 @@ export default function Methodology() {
       <p>
         Mints that describe themselves as test mints are checked but not scored or recommended, are left out of the totals
         and of the newest software version, and are listed after the other mints.
+      </p>
+
+      <h2 id="mint-run">Mint runs</h2>
+      <p>
+        A <Link href="/run">mint run</Link> is funded by a visitor with 10,000 to 100,000 sat paid to the home mint. The auditor then
+        sends the whole amount, minus fees, over Lightning through every recommended mint whose limits allow it, in random order,
+        one mint at a time, and finally back to the home mint. A mint that cannot quote, receive or pay the amount is skipped;
+        after three failures in a row the run returns home. The visitor pays only the fees actually charged; what is left goes to
+        their Lightning address, or to a Cashu token on their private run page if that payment fails, or to the audit if they
+        chose to donate. Run hops are listed on each mint&apos;s page but do not count toward scores, recommendations or the
+        daily fee budget, and the run&apos;s sats are not counted as audit balance.
       </p>
 
       <h2 id="api">Open data</h2>

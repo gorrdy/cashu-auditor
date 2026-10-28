@@ -85,6 +85,7 @@ model Swap {
   id           String   @id @default(cuid())
   kind         String   @default("swap")
   operatorId   String?
+  runId        String?
   sourceMintId String
   destMintId   String
   sourceMint   Mint     @relation("SwapSource", fields: [sourceMintId], references: [id])
@@ -112,6 +113,7 @@ model Swap {
   @@index([status])
   @@index([sourceMintId, timestamp])
   @@index([destMintId, timestamp])
+  @@index([runId])
 }
 
 model AuditLog {
@@ -347,6 +349,7 @@ model RevenueEntry {
 
 model Payout {
   id          String   @id @default(cuid())
+  runId       String?
   address     String
   amount      Int
   fee         Int      @default(0)
@@ -410,4 +413,34 @@ model DiscoveryCandidate {
   failures    Int       @default(0)
   aliasOfId   String?
   reason      String?
+}
+
+model MintRun {
+  id            String    @id @default(cuid())
+  amount        Int
+  value         Int
+  status        String
+  donate        Boolean   @default(false)
+  returnTo      String?
+  keyHash       String
+  quoteId       String    @unique
+  request       String
+  expiresAt     DateTime
+  route         String    @default("[]")
+  position      Int       @default(0)
+  currentMintId String?
+  lastSwapId    String?
+  failStreak    Int       @default(0)
+  nextAt        DateTime?
+  payoutId      String?
+  payAttempts   Int       @default(0)
+  returned      Int       @default(0)
+  token         String?
+  error         String?
+  createdAt     DateTime  @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
 }

@@ -7,3 +7,4 @@ export const FEE_BUFFER = 12;
 export const UNPROVEN_DEST_MAX = 5;
 export const OPERATOR_EXPOSURE = 600;
 export const MIN_AGE_MS = 3 * DAY;
+export const HELD_RUN_STATUSES = ['queued', 'running', 'paying'];

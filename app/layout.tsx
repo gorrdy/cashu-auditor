@@ -77,6 +77,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/#swaps" className="nav-optional nav-wide">Swaps</Link>
               <Link href="/compare" className="nav-optional nav-wide">Compare</Link>
               <Link href="/infrastructure" className="nav-optional nav-wide">Infrastructure</Link>
+              <Link href="/run" className="nav-optional nav-wide">Mint run</Link>
               <Link href="/learn" className="nav-optional nav-wide">Learn</Link>
               <Link href="/methodology" className="nav-optional">Methodology</Link>
               <span className="nav-optional"><AccountMenu profile={profile} /></span>
@@ -93,6 +94,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
               <Link href="/">Mints</Link>
               <Link href="/compare">Compare</Link>
               <Link href="/infrastructure">Infrastructure</Link>
+              <Link href="/run">Mint run</Link>
               <Link href="/learn">What is Cashu</Link>
               <Link href="/methodology">Methodology</Link>
               <Link href="/operators">For operators</Link>

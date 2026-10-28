@@ -9,7 +9,7 @@ import { recentlyFailing, BLAME_SELECT } from '@/lib/blame';
 import { SLOW_BELOW, totalBalance } from '@/lib/budget';
 import { loadBackoff } from '@/lib/backoff';
 import { COUNTED_SWAP } from '@/lib/counted';
-import { DAY } from '@/lib/constants';
+import { DAY, HELD_RUN_STATUSES } from '@/lib/constants';
 
 const LOW = 250;
 const TARGET = 500;
@@ -25,6 +25,7 @@ export async function GET(request: Request) {
   const result = await withWalletLock('rebalance', async () => {
     const home = await prisma.mint.findUnique({ where: { url: homeUrl }, select: { id: true, url: true } });
     if (!home) return { error: 'Home mint not tracked' };
+    if (await prisma.mintRun.count({ where: { status: { in: HELD_RUN_STATUSES } } })) return { skipped: 'Mint run in progress' };
     const now = Date.now();
     const failing = recentlyFailing(
       await prisma.swap.findMany({
