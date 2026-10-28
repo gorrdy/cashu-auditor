@@ -23,6 +23,7 @@ export async function mintList() {
       reasons: m.reasons,
       score: m.score,
       recommended: m.recommended,
+      failedMintRun: m.runFail ? { at: new Date(m.runFail.at).toISOString(), reason: m.runFail.reason } : null,
       uptime24h: m.uptime24h,
       uptime7d: m.uptime7d,
       uptime30d: m.uptime30d,
