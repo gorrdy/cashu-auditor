@@ -55,8 +55,9 @@ export function makeBlame(swaps: BlameSwap[], now = Date.now(), windowMs = 7 * D
     switch (s.stage) {
       case 'mint_quote':
         return s.destMintId;
-      case 'melt_quote':
       case 'split':
+        return /Not enough funds/.test(s.error ?? '') ? null : s.sourceMintId;
+      case 'melt_quote':
         return s.sourceMintId;
       case 'melt': {
         if (!ROUTE_ERROR.test(s.error ?? '')) return s.sourceMintId;

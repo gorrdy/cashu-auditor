@@ -83,7 +83,7 @@ export default async function RunDetail({ params }: { params: Promise<{ id: stri
               return (
                 <li key={m.id} className={state ? `is-${state}` : ''}>
                   <Link href={`/mint/${m.id}`}>{mintLabel(m)}</Link>
-                  {state ? <StateBadge kind={state} label={state === 'success' ? 'Passed' : state === 'failed' ? 'Failed' : 'Now'} /> : <span className="small muted">Waiting</span>}
+                  {state ? <StateBadge kind={state} label={state === 'success' ? 'Passed' : state === 'failed' ? 'Failed' : 'Now'} /> : <span className="small muted">{['invoice', 'queued', 'running'].includes(run.status) ? 'Waiting' : 'Skipped'}</span>}
                   {state === 'failed' && <span className="small soft run-error">{failedAt.get(m.id)}</span>}
                 </li>
               );

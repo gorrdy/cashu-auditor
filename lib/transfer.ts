@@ -74,6 +74,7 @@ export function dleqStatus(wallet: Wallet, proofs: CashuProof[]): 'valid' | 'inv
 
 export const toCashu = (p: StoredProof): ProofLike => ({ id: p.keysetId, amount: p.amount, secret: p.secret, C: p.C });
 const sum = (proofs: { amount: AmountLike }[]) => proofs.reduce((s, p) => s + num(p.amount), 0);
+const bits = (n: number) => n.toString(2).replace(/0/g, '').length;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function storeProofs(mintId: string, proofs: CashuProof[]) {
@@ -294,8 +295,10 @@ export async function transfer(opts: {
         return fail(`Fee reserve ${num(meltQuote.fee_reserve)} sat is too high for ${target} sat`);
       }
       const base = num(meltQuote.amount) + num(meltQuote.fee_reserve);
-      send = cap >= base ? sourceWallet.selectProofsToSend(proofs, base, true).send : [];
-      const needed = base + (send.length ? num(sourceWallet.getFeesForProofs(send)) : 0);
+      const outputFee = num(sourceWallet.getFeesForKeyset(bits(base) + 2, sourceWallet.keysetId));
+      send = cap >= base ? sourceWallet.selectProofsToSend(proofs, base + outputFee, true).send : [];
+      const inputFee = send.length ? num(sourceWallet.getFeesForProofs(send)) : 0;
+      const needed = base + inputFee + (sum(send) > base + inputFee ? outputFee : 0);
       if (opts.budget && !grown && needed < cap && attempt < 3 && target + cap - needed <= limits.max) {
         grown = true;
         target += cap - needed;
@@ -314,7 +317,10 @@ export async function transfer(opts: {
     const base = num(meltQuote!.amount) + num(meltQuote!.fee_reserve);
     if (sum(send) > base + num(sourceWallet.getFeesForProofs(send))) {
       stage = 'split';
-      const split = await withTimeout(sourceWallet.send(base, send, { includeFees: true }), 30_000);
+      const split = await withTimeout(sourceWallet.send(base, send, { includeFees: true }), 30_000).catch(e => {
+        if (/Not enough funds/.test(errorMessage(e))) stage = 'balance';
+        throw e;
+      });
       await prisma.$transaction([
         prisma.proof.deleteMany({ where: { secret: { in: send.map(p => p.secret) }, state: 'unspent' } }),
         ...[...split.keep, ...split.send].map(p =>

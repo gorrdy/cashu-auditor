@@ -31,7 +31,7 @@ export function runFailures(hops: RunHop[], now = Date.now()) {
     const at = h.timestamp.getTime();
     const stalled = h.status === 'pending' ? h.stage === 'melt' && now - at > RUN_STALL_MS : h.status === 'success' && h.duration > RUN_STALL_MS;
     if (h.status !== 'failed' && !stalled) continue;
-    if (h.status === 'failed' && NOT_THE_MINT.includes(h.stage ?? '')) continue;
+    if (h.status === 'failed' && (NOT_THE_MINT.includes(h.stage ?? '') || /Not enough funds/.test(h.error ?? ''))) continue;
     if (stalled) {
       const id = lightning(h);
       mark(id, at, id === h.destMintId ? 'A large Lightning payment to it got stuck' : 'A large Lightning payment from it got stuck');

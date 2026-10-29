@@ -22,6 +22,10 @@ describe('runFailures', () => {
     const f = runFailures([hop('A', 'Q', 'failed', 'mint_quote', 5), hop('A', 'B', 'failed', 'balance', 5)], now);
     expect([...f.keys()]).toEqual(['Q']);
   });
+  it('does not blame the payer when our own split came up short on its input fees', () => {
+    const f = runFailures([{ ...hop('M', 'B', 'failed', 'split', 5), error: 'Not enough funds available to send' }], now);
+    expect(f.size).toBe(0);
+  });
   it('forgets failures after 30 days', () => {
     expect(runFailures([hop('A', 'Q', 'failed', 'mint_quote', 31 * 24 * 60)], now).size).toBe(0);
   });
